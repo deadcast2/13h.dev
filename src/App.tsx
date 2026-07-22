@@ -134,6 +134,27 @@ export function App() {
           {MODE13H_SAMPLE.text}
         </pre>
       </section>
+
+      {/*
+        A visible source link is how a web app meets the spirit of GPL section 3:
+        the code is served to every visitor, so every visitor should be able to
+        find where it came from.
+      */}
+      <footer
+        style={{
+          marginTop: "2rem",
+          paddingTop: "1rem",
+          borderTop: "1px solid var(--border)",
+          color: "var(--text-dim)",
+          fontSize: "0.8rem",
+        }}
+      >
+        13h.dev is free software under the{" "}
+        <a href="https://www.gnu.org/licenses/old-licenses/gpl-2.0.html">GPL-2.0</a>.
+        DOS emulation by <a href="https://github.com/caiiiycuk/js-dos">js-dos</a>{" "}
+        (GPL-2.0). Turbo C++ is Borland/Embarcadero&apos;s and is supplied by you,
+        not by this site.
+      </footer>
     </main>
   );
 }

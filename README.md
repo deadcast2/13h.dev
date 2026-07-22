@@ -71,12 +71,32 @@ With a `.7z` sitting in the repo root, the argument can be omitted. Output lands
 
 ## Licensing
 
-No license chosen yet. Worth deciding before this goes public, because js-dos embeds
-DOSBox, which is **GPL-2.0** — that governs distribution of the built site regardless
-of what the application source is licensed as.
+Copyright (C) 2026 Caleb Cohoon
 
-Turbo C++ is Borland/Embarcadero's. It is neither included nor redistributed here;
-users supply their own copy.
+> This program is free software; you can redistribute it and/or modify it under
+> the terms of the GNU General Public License as published by the Free Software
+> Foundation; either version 2 of the License, or (at your option) any later
+> version.
+>
+> This program is distributed in the hope that it will be useful, but WITHOUT ANY
+> WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+> PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+See `LICENSE` for the full text, and `THIRD-PARTY-NOTICES.md` for what it covers
+and why.
+
+The short version: js-dos embeds DOSBox, which is GPL-2.0, and a deployed copy of
+this site serves that emulator to every visitor. Shipping JavaScript and WebAssembly
+to a browser is distribution — the GPL applies to a website in a way it does not
+apply to purely server-side use.
+
+Two things this does **not** reach:
+
+- **Your code.** Programs you write in the editor are yours. They are compiled
+  locally, by a compiler you supplied, and this project claims nothing over the
+  source or the executables it produces.
+- **Turbo C++.** Borland/Embarcadero's, neither included nor redistributed here.
+  Users supply their own copy.
 
 ## Status
 

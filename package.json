@@ -4,6 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "description": "A browser-based Turbo C++ 1.01 IDE for mode 13h VGA programming.",
+  "license": "GPL-2.0-or-later",
+  "author": "Caleb Cohoon",
   "scripts": {
     "predev": "npm run emulators:stage",
     "dev": "vite",
