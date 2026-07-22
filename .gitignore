@@ -30,3 +30,6 @@ pnpm-debug.log*
 *.img
 vendor/
 public/dev-toolchain/
+
+# js-dos runtime, staged out of node_modules by tools/copy-emulator-assets.mjs
+public/emulators/

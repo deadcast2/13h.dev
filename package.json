@@ -5,13 +5,19 @@
   "type": "module",
   "description": "A browser-based Turbo C++ 1.01 IDE for mode 13h VGA programming.",
   "scripts": {
+    "predev": "npm run emulators:stage",
     "dev": "vite",
+    "prebuild": "npm run emulators:stage",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
+    "emulators:stage": "node tools/copy-emulator-assets.mjs",
     "toolchain:fixture": "node tools/make-toolchain-fixture.mjs"
   },
   "dependencies": {
+    "emulators": "^8.4.1",
+    "fflate": "^0.8.3",
+    "js-dos": "^8.4.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
