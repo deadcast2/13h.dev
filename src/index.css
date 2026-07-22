@@ -1,0 +1,48 @@
+:root {
+  /* Borrowed from the default VGA palette, because of course. */
+  --vga-black: #000000;
+  --vga-blue: #0000aa;
+  --vga-cyan: #00aaaa;
+  --vga-light-gray: #aaaaaa;
+  --vga-dark-gray: #555555;
+  --vga-light-cyan: #55ffff;
+  --vga-white: #ffffff;
+  --vga-yellow: #ffff55;
+  --vga-light-red: #ff5555;
+  --vga-light-green: #55ff55;
+
+  --bg: #0b0d10;
+  --bg-panel: #14171c;
+  --border: #262b33;
+  --text: #d6dae0;
+  --text-dim: #7d8590;
+
+  --mono: ui-monospace, "Cascadia Code", "JetBrains Mono", "SF Mono", Consolas,
+    "Liberation Mono", monospace;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--vga-light-cyan);
+}

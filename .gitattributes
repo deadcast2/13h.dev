@@ -1,0 +1,7 @@
+* text=auto eol=lf
+*.png binary
+*.zip binary
+*.7z binary
+*.img binary
+*.BGI binary
+*.CHR binary
