@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { MODE13H_SAMPLE } from "./build/samples";
 import { compile, type BuildResult } from "./build/turboc";
+import { PreviewPane } from "./run/PreviewPane";
 
 type Phase = "idle" | "building" | "done" | "error";
 
@@ -30,11 +31,13 @@ export function App() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [result, setResult] = useState<BuildResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [running, setRunning] = useState<Uint8Array | null>(null);
 
   async function runBuild() {
     setPhase("building");
     setResult(null);
     setError(null);
+    setRunning(null); // a new build invalidates whatever is on screen
     try {
       setResult(await compile([MODE13H_SAMPLE]));
       setPhase("done");
@@ -79,6 +82,24 @@ export function App() {
             {phase === "building" ? "Compiling…" : "Compile"}
           </button>
 
+          {exe && !running && (
+            <button
+              onClick={() => setRunning(exe)}
+              style={{
+                font: "inherit",
+                marginLeft: "0.75rem",
+                padding: "0.5rem 1.25rem",
+                borderRadius: 4,
+                border: "1px solid var(--border)",
+                background: "var(--vga-cyan)",
+                color: "var(--vga-black)",
+                cursor: "pointer",
+              }}
+            >
+              Run ▸
+            </button>
+          )}
+
           {error && (
             <p style={{ color: "var(--vga-light-red)" }}>{error}</p>
           )}
@@ -119,6 +140,15 @@ export function App() {
           )}
         </div>
       </section>
+
+      {running && (
+        <section style={PANEL}>
+          <header style={PANEL_HEADER}>Preview</header>
+          <div style={{ padding: "1rem" }}>
+            <PreviewPane executable={running} />
+          </div>
+        </section>
+      )}
 
       <section style={PANEL}>
         <header style={PANEL_HEADER}>Source</header>
