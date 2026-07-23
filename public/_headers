@@ -23,10 +23,20 @@
 # HSTS is belt-and-suspenders — the whole `.dev` TLD is HSTS-preloaded, so
 # browsers force HTTPS regardless — but the header is correct and carries the
 # `preload` directive for this specific host. Permissions-Policy denies the
-# device features the app has no use for. `frame-ancestors 'none'` refuses
-# framing outright, which COOP does not cover; it is the CSP's one directive that
-# is safe to ship ahead of the rest, since the app is never framed and the full
-# script/worker/wasm policy still needs testing against a live build.
+# device features the app has no use for.
+#
+# The CSP must stay in step with the copy in vite.config.ts, which enforces the
+# same policy on the dev server. Every source was settled by driving a real
+# build under the policy, not by guessing:
+#   'unsafe-eval'   js-dos's emulators.js evaluates a string as JS at boot — the
+#                   build dies at emulator start without it. It does NOT grant
+#                   'unsafe-inline', so injected inline <script> and on*= handlers
+#                   stay blocked; it opens only the eval sink, which is js-dos's
+#                   own bootstrap and never sees user data.
+#   blob:           Vite builds instantiate the bundled Monaco and DOSBox workers
+#                   from blob URLs.
+#   'unsafe-inline' on style-src only (Monaco injects styles); never on scripts.
+#   frame-ancestors refuses framing, which COOP does not cover.
 /*
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Embedder-Policy: require-corp
@@ -34,7 +44,7 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
   Permissions-Policy: accelerometer=(), autoplay=(), camera=(), display-capture=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()
-  Content-Security-Policy: frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' blob: data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
 
 # Vite fingerprints everything under /assets/, so these are safe to keep forever.
 /assets/*

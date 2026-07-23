@@ -271,6 +271,33 @@ outright — this is already why Monaco's worker is bundled — and `/emulators/
 an absolute path, so the app must be served from a domain root and not a project
 subpath.
 
+**The CSP needs `'unsafe-eval'`, and only a real build finds that out.**
+`js-dos`'s `emulators.js` evaluates a string as JavaScript when the emulator
+boots, so a policy with `'wasm-unsafe-eval'` — which is enough for the DOSBox and
+7-Zip wasm compiles — still dies at the first build with `Evaluating a string as
+JavaScript violates … 'unsafe-eval' is not an allowed source`, and no amount of
+reading the code up front would have predicted it. `'unsafe-eval'` does not grant
+`'unsafe-inline'`, so injected inline `<script>` and `on*=` handlers stay blocked;
+it opens only the eval sink, which is js-dos's own bootstrap and never sees user
+data. `blob:` is on `script-src`/`worker-src` because a production Vite build
+instantiates the bundled Monaco and DOSBox workers from blob URLs; `style-src`
+carries `'unsafe-inline'` for Monaco's runtime-injected styles, scripts get no
+such grant. The policy lives in both `vite.config.ts` (dev) and `public/_headers`
+(prod) and the two must move together.
+
+Two traps in testing a CSP against this app, both of which cost real time.
+First, the source-import console recipe (`import("/src/build/turboc.ts")`) only
+works against the **dev** server; the built preview serves hashed bundles and
+`/src/…` 404s, so the emulator path has to be validated on `npm run dev`, not
+`vite preview` — which is fine, because `/emulators/` is the same static payload
+in both. Second, **changing the policy mid-session poisons the browser cache**: a
+worker script fetched under the old CSP is reused with its old header, so the
+build keeps failing under a policy the document no longer has, and the
+`securitypolicyviolation` event and the thrown `EvalError` disagree about which
+policy is in force. The way out is a first-load-clean origin — a fresh dev port
+(`localhost:5173` and `:5188` are different origins with different caches), which
+is exactly what production always is.
+
 **The `.nvmrc` pin decides which npm resolves the lock file, and npm 10 and 11
 disagree.** `js-dos` bundles `react-checkbox-tree` and `react-redux`, whose react
 peer caps at `^18`. npm 11 dedupes those against the react 19 this app uses; npm
