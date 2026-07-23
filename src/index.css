@@ -46,3 +46,450 @@ body {
 a {
   color: var(--vga-light-cyan);
 }
+
+/* ── Shared bits ─────────────────────────────────────────────────────────── */
+
+.brand {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.brand-large {
+  font-size: 2rem;
+}
+
+.brand-dim {
+  color: var(--text-dim);
+}
+
+.placeholder {
+  color: var(--text-dim);
+  margin: 0;
+  padding: 1rem;
+}
+
+.btn {
+  font: inherit;
+  padding: 0.35rem 0.9rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--vga-cyan);
+}
+
+.btn:disabled {
+  cursor: wait;
+  color: var(--text-dim);
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--vga-blue);
+  border-color: #2a2fa0;
+}
+
+.btn-primary:disabled {
+  background: var(--bg);
+}
+
+kbd {
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--vga-light-cyan);
+  opacity: 0.75;
+}
+
+.btn:disabled kbd {
+  color: var(--text-dim);
+}
+
+.icon-btn {
+  font: inherit;
+  line-height: 1;
+  padding: 0.15rem 0.35rem;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.icon-btn:hover:not(:disabled) {
+  background: var(--border);
+  color: var(--text);
+}
+
+.icon-btn:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.link-btn {
+  font: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--vga-light-cyan);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ── Setup screen ────────────────────────────────────────────────────────── */
+
+.setup {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+}
+
+.setup .placeholder {
+  padding: 0.25rem 0 0;
+}
+
+.setup-footer {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+/* ── IDE frame ───────────────────────────────────────────────────────────── */
+
+.ide {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100%;
+}
+
+.ide-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+
+.ide-bar .brand {
+  margin-right: 0.5rem;
+}
+
+.status {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.status-building {
+  color: var(--vga-yellow);
+}
+
+.status-done {
+  color: var(--vga-light-green);
+}
+
+.status-error {
+  color: var(--vga-light-red);
+}
+
+.status-detail {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.ide-body {
+  display: grid;
+  /* minmax(0, …) on the editor column: Monaco's own content would otherwise set
+     the column's minimum width and the grid would grow past the viewport. */
+  grid-template-columns: 13rem minmax(0, 1fr) 24rem;
+  min-height: 0;
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  border-right: 1px solid var(--border);
+}
+
+.pane:last-child {
+  border-right: none;
+}
+
+.pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  flex: none;
+}
+
+.ide-status {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.35rem 0.75rem;
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text-dim);
+  font-size: 0.75rem;
+}
+
+/* ── File tree ───────────────────────────────────────────────────────────── */
+
+.tree {
+  background: var(--bg);
+}
+
+.tree-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.35rem 0;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  padding-right: 0.25rem;
+}
+
+.tree-row .icon-btn {
+  visibility: hidden;
+  flex: none;
+}
+
+.tree-row:hover .icon-btn:not(:disabled),
+.tree-row.is-active .icon-btn:not(:disabled) {
+  visibility: visible;
+}
+
+.tree-row:hover {
+  background: var(--bg-panel);
+}
+
+.tree-row.is-active {
+  background: #1b2029;
+  box-shadow: inset 2px 0 0 var(--vga-cyan);
+}
+
+.tree-name {
+  font: inherit;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 0.2rem 0.5rem 0.2rem 0.75rem;
+  border: none;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Headers are project furniture rather than things that get compiled; dimming
+   them makes the translation units the ones that stand out. */
+.tree-row[data-kind="header"] .tree-name,
+.tree-row[data-kind="other"] .tree-name {
+  color: var(--text-dim);
+}
+
+.tree-form {
+  padding: 0.2rem 0.5rem;
+}
+
+.tree-input {
+  font: inherit;
+  width: 100%;
+  padding: 0.15rem 0.35rem;
+  border: 1px solid var(--vga-cyan);
+  border-radius: 3px;
+  background: var(--bg-panel);
+  color: var(--text);
+  text-transform: uppercase;
+}
+
+.tree-error {
+  margin: 0.35rem 0 0;
+  color: var(--vga-light-red);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.tree-hint {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  line-height: 1.45;
+  flex: none;
+}
+
+.tree-hint code {
+  color: var(--vga-light-cyan);
+}
+
+/* ── Editor ──────────────────────────────────────────────────────────────── */
+
+.editor-pane {
+  background: var(--bg-panel);
+}
+
+.tabs {
+  display: flex;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  flex: none;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding-right: 0.35rem;
+  border-right: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.tab.is-active {
+  background: var(--bg-panel);
+  box-shadow: inset 0 2px 0 var(--vga-cyan);
+}
+
+.tab .icon-btn {
+  visibility: hidden;
+}
+
+.tab:hover .icon-btn,
+.tab.is-active .icon-btn {
+  visibility: visible;
+}
+
+.tab-name {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.3rem 0.4rem 0.75rem;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.tab.is-active .tab-name {
+  color: var(--text);
+}
+
+.editor-host {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.editor-monaco {
+  position: absolute;
+  inset: 0;
+}
+
+.editor-empty {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 1.5rem;
+  background: var(--bg-panel);
+  color: var(--text-dim);
+}
+
+/* ── Output ──────────────────────────────────────────────────────────────── */
+
+.output-pane {
+  background: var(--bg);
+}
+
+.preview-slot {
+  padding: 0.75rem;
+  flex: none;
+}
+
+.preview-slot .placeholder {
+  padding: 0.5rem 0.25rem;
+  font-size: 0.85rem;
+}
+
+.preview-canvas {
+  display: block;
+  width: 100%;
+  background: #000;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  /* Nearest-neighbour upscale. Without this the browser smooths the image and
+     every hard-won pixel turns to mush. */
+  image-rendering: pixelated;
+  outline: none;
+  cursor: crosshair;
+}
+
+.preview-canvas:focus {
+  border-color: var(--vga-cyan);
+}
+
+.preview-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.6rem;
+}
+
+.preview-controls label {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.preview-controls input {
+  margin-right: 0.35rem;
+  vertical-align: -0.1em;
+}
+
+.preview-status {
+  margin: 0.4rem 0 0;
+  font-size: 0.78rem;
+}
+
+.preview-error {
+  margin: 0.4rem 0 0;
+  color: var(--vga-light-red);
+  font-size: 0.8rem;
+}
+
+.build-log {
+  margin: 0;
+  padding: 0.75rem;
+  flex: 1;
+  min-height: 6rem;
+  overflow: auto;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-dim);
+}

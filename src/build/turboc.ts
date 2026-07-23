@@ -69,6 +69,22 @@ const OUTPUT_EXE = "MAIN.EXE";
 const LOG_FILE = "BUILD.LOG";
 const DONE_FILE = "DONE.FLG";
 
+/**
+ * What TCC is handed on the command line. Headers are written to the same
+ * directory so `#include "VGA.H"` resolves, but naming one as a translation unit
+ * makes TCC compile it standalone and then hand the linker an object file full
+ * of nothing.
+ */
+const TRANSLATION_UNIT = /\.(c|cpp)$/i;
+
+/**
+ * COMMAND.COM parses at most 127 characters, and truncates silently past that —
+ * the tail of the file list simply never reaches the compiler, and the build
+ * fails at link time complaining about symbols whose source is right there in
+ * the project. Checked rather than discovered.
+ */
+const DOS_COMMAND_LIMIT = 127;
+
 /** DOS tools want CRLF, and DOSBox's shell is particular about it in batch files. */
 const toDos = (text: string) => text.replace(/\r?\n/g, "\r\n");
 
@@ -101,13 +117,25 @@ function turbocCfg(options: BuildOptions): string {
   return toDos(lines.join("\n") + "\n");
 }
 
-function buildBat(sources: SourceFile[]): string {
-  const names = sources.map((f) => f.name).join(" ");
+function buildBat(units: SourceFile[]): string {
+  // Compile and link in one invocation; TCC hands the objects to TLINK itself.
+  // `TCC` unqualified rather than C:\TC\BIN\TCC.EXE — the toolchain is on PATH
+  // either way, and the twelve characters saved are twelve characters of
+  // filenames that fit under the command-line limit.
+  const command = `TCC -e${OUTPUT_EXE} ${units.map((f) => f.name).join(" ")}`;
+
+  if (command.length + ` > ${LOG_FILE}`.length > DOS_COMMAND_LIMIT) {
+    throw new Error(
+      `This project has too many source files for one DOS command line ` +
+        `(${units.length} files, ${command.length} characters, limit ` +
+        `${DOS_COMMAND_LIMIT - 12}). Shorter filenames or fewer of them will fit.`,
+    );
+  }
+
   return toDos(
     [
       "@ECHO OFF",
-      // Compile and link in one invocation; TCC hands the objects to TLINK itself.
-      `C:\\TC\\BIN\\TCC.EXE -e${OUTPUT_EXE} ${names} > ${LOG_FILE}`,
+      `${command} > ${LOG_FILE}`,
       // Written last, so its presence means the build has finished. The host
       // polls for this rather than guessing at timing.
       `ECHO DONE > ${DONE_FILE}`,
@@ -201,8 +229,9 @@ export async function compile(
   sources: SourceFile[],
   options: BuildOptions = {},
 ): Promise<BuildResult> {
-  if (sources.length === 0) {
-    throw new Error("Nothing to compile — the project has no source files.");
+  const units = sources.filter((file) => TRANSLATION_UNIT.test(file.name));
+  if (units.length === 0) {
+    throw new Error("Nothing to compile — the project has no .C or .CPP files.");
   }
 
   const startedAt = performance.now();
@@ -220,7 +249,9 @@ export async function compile(
     toolchain.zip,
     { dosboxConf: DOSBOX_CONF, jsdosConf: { version: emulators.version } },
     { path: `${SRC_DIR}/TURBOC.CFG`, contents: encode(turbocCfg(options)) },
-    { path: `${SRC_DIR}/BUILD.BAT`, contents: encode(buildBat(sources)) },
+    { path: `${SRC_DIR}/BUILD.BAT`, contents: encode(buildBat(units)) },
+    // Every file goes to the disk, units and headers alike; only the units are
+    // named on the command line.
     ...sources.map((file) => ({
       path: `${SRC_DIR}/${file.name}`,
       contents: encode(toDos(file.text)),

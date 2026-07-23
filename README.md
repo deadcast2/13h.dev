@@ -12,7 +12,7 @@ Three layers, all in the browser:
 
 | Layer | What it does |
 | --- | --- |
-| **Editor** | Monaco, multi-file projects, compiler errors inline |
+| **Editor** | Monaco, multi-file projects, tabs, 8.3-validated filenames |
 | **Compiler** | Real `TCC.EXE` running in a headless [js-dos](https://js-dos.com) DOSBox worker |
 | **Preview** | The compiled `.EXE` in a second, visible DOSBox — actual emulated VGA |
 
@@ -84,6 +84,16 @@ mapping layer that makes your source lie to you, the editor validates filenames 
 rejects ones DOS can't represent. Period-accurate, and you always know what the
 compiler sees.
 
+Names are rejected with the specific reason — too long, more than one dot, a
+character FAT doesn't allow, or a reserved device name like `CON`. Everything is
+uppercased on the way in, because that is what the disk stores.
+
+A build writes every file in the project to the compiler's working directory but
+names only `.C` and `.CPP` on the command line: headers travel with the sources
+so `#include "VGA.H"` resolves, without being compiled as translation units in
+their own right. That command line is subject to DOS's 127-character limit, which
+is checked before the build rather than discovered as a link error afterwards.
+
 ## Development
 
 ```bash
@@ -129,6 +139,6 @@ Two things this does **not** reach:
 
 ## Status
 
-Step 3 of 8. Supply your disks, compile a mode 13h program, and watch it run.
-Still to come: the Monaco editor shell, multi-file projects with local
-persistence, import/export, and compiler errors inline.
+Step 4 of 8. Supply your disks, edit a multi-file project, press Ctrl+B, and
+watch your pixels. Still to come: local persistence, import/export, and compiler
+errors shown inline against the source rather than only in the build log.

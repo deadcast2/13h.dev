@@ -6,15 +6,19 @@ what bites.
 
 ## State
 
-Steps 0–3 of 8 are done and committed. The pipeline works end to end: supply
-install disks, compile a mode 13h program with the real `TCC.EXE`, watch it run.
+Steps 0–4 of 8 are done and committed. It is a working IDE: supply install disks,
+edit a multi-file project in Monaco, press Ctrl+B, watch it run.
 
-**Next: step 4, the Monaco editor shell** — real editing, multi-file tabs, a file
-tree, Build wired to the existing pipeline. `src/App.tsx` is currently a spike
-page with a single hardcoded sample; it is meant to be replaced.
+**Next: step 5, persistence** — the project model in `src/project/useProject.ts`
+is in-memory only, so a refresh loses everything. It wants the same IndexedDB
+treatment `src/toolchain/store.ts` already gives the compiler, plus somewhere to
+keep more than one project.
 
-Then: 5 project model + IndexedDB persistence, 6 import/export, 7 compiler
-diagnostics inline, 8 polish.
+Then: 6 import/export, 7 compiler diagnostics inline, 8 polish.
+
+The build log already carries what step 7 needs — TCC emits
+`Error main.c 7: Undefined symbol 'this' in function main`, so file and line are
+right there to be parsed into Monaco markers.
 
 ## Commands
 
@@ -31,6 +35,14 @@ browser and reading pixels back off the canvas.
 
 | Path | Role |
 | --- | --- |
+| `src/App.tsx` | Setup screen or IDE. Lazy-loads the workbench, and with it Monaco. |
+| `src/ide/Workbench.tsx` | The IDE frame; owns build state and the one Build action. |
+| `src/ide/FileTree.tsx` | File list, create/rename/delete, where 8.3 is enforced. |
+| `src/ide/EditorTabs.tsx` | The open set. Closing a tab is not deleting a file. |
+| `src/editor/monaco.ts` | Monaco entry points, VGA-palette theme, worker wiring. |
+| `src/editor/CodeEditor.tsx` | One model per file, keyed by id; view state per tab. |
+| `src/project/useProject.ts` | Files, open tabs, active file. In-memory for now. |
+| `src/project/dosNames.ts` | 8.3 validation and the sort order the UI displays. |
 | `src/toolchain/unpack.ts` | Disks → `C:\TC` tree. Expands containers until none remain, then sorts files by type. |
 | `src/toolchain/sevenZip.ts` | 7-Zip wasm loader. Dynamically imported; 1.65 MB. |
 | `src/toolchain/store.ts` | IndexedDB cache of the unpacked toolchain. |
@@ -72,6 +84,15 @@ check and nothing paints.
 `PATH` or compiling succeeds and linking fails with a message pointing nowhere
 near the cause.
 
+**Monaco is imported through narrow entry points, not the barrel.**
+`edcore.main` is every editing feature and no languages; the C/C++ tokenizer is
+added on its own. Importing `monaco-editor` instead drags in the TypeScript,
+JSON, HTML and CSS services in an app whose only language is C. Those entry
+points ship no `.d.ts`, and `noUncheckedSideEffectImports` rejects an import it
+cannot resolve, which is what `src/editor/monaco-esm.d.ts` exists to satisfy.
+The worker must be bundled rather than loaded from a CDN — this page is
+cross-origin isolated, and COEP blocks third-party scripts outright.
+
 **js-dos needs real directory entries in bundle zips.** `fflate`'s `zipSync` emits
 file records only, and DOSBox then reports `TC/INCLUDE: No such file or directory`
 and comes up with no toolchain, and the build hangs. The toolchain zip is written
@@ -79,7 +100,24 @@ by 7-Zip for this reason.
 
 **Compiler flags live in `TURBOC.CFG`, not the command line.** DOS has a
 127-character command-line limit that a project with several source files would
-otherwise hit.
+otherwise hit. Even with the flags moved out, the limit is close enough to matter
+— roughly eight files at eight characters each — so `buildBat()` measures the
+command and throws with a real explanation. COMMAND.COM truncates silently past
+127, and the resulting failure is a linker error naming symbols whose source is
+sitting right there in the project. If this ever needs lifting, the way is
+separate `-c` compile passes and an explicit `TLINK`, not a longer line.
+
+**Only `.C`/`.CPP` go on the command line; headers only go on the disk.** Naming
+a header as a translation unit makes TCC compile it standalone and hand the
+linker an object file full of nothing. Both still have to be written to `SRC`, or
+`#include "VGA.H"` cannot resolve.
+
+**`phase` state cannot guard build re-entrancy.** Ctrl+B inside the editor is
+handled by Monaco's own binding, and if it also reaches the window listener both
+fire in the same tick and both read the pre-render value. Two builds then race,
+each booting an emulator — the one thing the design forbids. `Workbench` guards
+with a ref, which updates synchronously. Same reasoning applies to any future
+"build on save".
 
 **Only one emulator at a time.** Each is a worker holding a 1.4 MB wasm module and
 a 16 MB machine. `runProgram()` stops the previous one and starts the next as a
@@ -121,6 +159,13 @@ pixels.
 
 In dev, `import("/src/build/turboc.ts")` from the browser console works and is the
 quickest way to compile arbitrary source without touching the UI.
+
+**Browser automation cannot press keys here.** Synthetic key events arrive with
+`event.code` empty and modifiers dropped, so neither the preview's keyboard
+(which maps from `code`) nor Ctrl+B can be exercised by clicking through the app.
+Typing text into Monaco does work — it goes in as an input event. For the rest,
+dispatch a properly-formed `KeyboardEvent` from the console; that still exercises
+everything from the app's own listener onward, which is the part worth testing.
 
 ## Conventions
 

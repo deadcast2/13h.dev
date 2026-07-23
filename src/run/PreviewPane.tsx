@@ -14,7 +14,7 @@ type PixelAspect = "authentic" | "square";
 
 const STATUS_LABEL: Record<RunStatus, string> = {
   booting: "starting DOS…",
-  running: "running — click the screen to give it the keyboard",
+  running: "running — click the screen for the keyboard",
   exited: "program exited",
   stopped: "stopped",
 };
@@ -67,66 +67,38 @@ export function PreviewPane({ executable }: { executable: Uint8Array }) {
   }, [executable, generation]);
 
   return (
-    <div>
-      <div
+    <div className="preview">
+      <canvas
+        ref={canvasRef}
+        tabIndex={0}
+        className="preview-canvas"
         style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "1rem",
-          marginBottom: "0.75rem",
+          // 320x200 is 8:5. Presenting it as 4:3 reproduces the vertical stretch
+          // a VGA monitor applied; the backing store stays 320x200 either way.
+          aspectRatio: aspect === "authentic" ? "4 / 3" : "8 / 5",
         }}
-      >
-        <button
-          onClick={() => setGeneration((n) => n + 1)}
-          style={{
-            font: "inherit",
-            padding: "0.35rem 0.9rem",
-            borderRadius: 4,
-            border: "1px solid var(--border)",
-            background: "var(--bg)",
-            color: "var(--text)",
-            cursor: "pointer",
-          }}
-        >
+      />
+
+      <div className="preview-controls">
+        <button className="btn" onClick={() => setGeneration((n) => n + 1)}>
           Restart
         </button>
 
-        <label style={{ color: "var(--text-dim)", fontSize: "0.85rem" }}>
+        <label>
           <input
             type="checkbox"
             checked={aspect === "authentic"}
             onChange={(e) => setAspect(e.target.checked ? "authentic" : "square")}
-            style={{ marginRight: "0.4rem" }}
           />
-          4:3 pixel aspect
+          4:3 pixels
         </label>
-
-        <span style={{ color: STATUS_COLOR[status], fontSize: "0.85rem" }}>
-          {STATUS_LABEL[status]}
-        </span>
       </div>
 
-      {error && <p style={{ color: "var(--vga-light-red)" }}>{error}</p>}
+      <p className="preview-status" style={{ color: STATUS_COLOR[status] }}>
+        {STATUS_LABEL[status]}
+      </p>
 
-      <canvas
-        ref={canvasRef}
-        tabIndex={0}
-        style={{
-          display: "block",
-          width: "100%",
-          // 320x200 is 8:5. Presenting it as 4:3 reproduces the vertical stretch
-          // a VGA monitor applied; the backing store stays 320x200 either way.
-          aspectRatio: aspect === "authentic" ? "4 / 3" : "8 / 5",
-          background: "#000",
-          border: "1px solid var(--border)",
-          borderRadius: 4,
-          // Nearest-neighbour upscale. Without this the browser smooths the image
-          // and every hard-won pixel turns to mush.
-          imageRendering: "pixelated",
-          outline: "none",
-          cursor: "crosshair",
-        }}
-      />
+      {error && <p className="preview-error">{error}</p>}
     </div>
   );
 }

@@ -1,18 +1,39 @@
 import type { SourceFile } from "./turboc";
 
 /**
- * The smoke-test program. It is deliberately a real mode 13h program rather than
- * a hello-world: it exercises `<dos.h>`, the BIOS video interrupt, and a far
- * pointer into video memory at A000:0000, which is exactly the ground the rest of
- * this project stands on. If this compiles and runs, the toolchain is sound.
+ * The project a new visitor lands in.
+ *
+ * It is deliberately three files rather than one. A single hello-world would
+ * demonstrate nothing that isn't already proven by the toolchain existing,
+ * whereas this exercises the two things the rest of the project stands on: a
+ * real mode 13h program — `<dos.h>`, the BIOS video interrupt, a far pointer to
+ * A000:0000 — and a multi-file build where a header travels with the sources but
+ * is not itself a translation unit.
+ *
+ * It doubles as the smoke test. Every pixel is `x ^ y`, so the result is
+ * checkable against the default VGA palette rather than by eye: 320x200, 246
+ * distinct colours, 61808 non-black pixels.
  */
-export const MODE13H_SAMPLE: SourceFile = {
-  name: "MAIN.C",
-  text: `#include <dos.h>
-#include <conio.h>
+
+const VGA_H: SourceFile = {
+  name: "VGA.H",
+  text: `#ifndef VGA_H
+#define VGA_H
 
 #define SCREEN_W 320
 #define SCREEN_H 200
+
+void set_mode(unsigned char mode);
+void put_pixel(int x, int y, unsigned char color);
+
+#endif
+`,
+};
+
+const VGA_C: SourceFile = {
+  name: "VGA.C",
+  text: `#include <dos.h>
+#include "VGA.H"
 
 /* Mode 13h maps the whole 320x200 frame to one byte per pixel at A000:0000. */
 unsigned char far *vga = (unsigned char far *)MK_FP(0xA000, 0x0000);
@@ -29,6 +50,13 @@ void put_pixel(int x, int y, unsigned char color)
 {
     vga[(unsigned int)y * SCREEN_W + x] = color;
 }
+`,
+};
+
+const MAIN_C: SourceFile = {
+  name: "MAIN.C",
+  text: `#include <conio.h>
+#include "VGA.H"
 
 int main(void)
 {
@@ -46,3 +74,5 @@ int main(void)
 }
 `,
 };
+
+export const STARTER_PROJECT: SourceFile[] = [MAIN_C, VGA_C, VGA_H];
