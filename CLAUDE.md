@@ -19,7 +19,13 @@ Then: 7 compiler diagnostics inline, 8 polish.
 
 The build log already carries what step 7 needs — TCC emits
 `Error main.c 7: Undefined symbol 'this' in function main`, so file and line are
-right there to be parsed into Monaco markers.
+right there to be parsed into Monaco markers. `BuildResult.hint` is the place for
+anything that explains a failure rather than locating it; the two should sit
+beside each other rather than compete.
+
+Assembly works end to end as of the last session, given a TASM. That is the most
+recently exercised path and the least covered by anything written down, so treat
+it as the thing most likely to break unnoticed.
 
 ## Commands
 
@@ -92,6 +98,22 @@ check and nothing paints.
 **`TCC` shells out to `TLINK` by bare name.** `C:\TC\BIN` must be on the DOS
 `PATH` or compiling succeeds and linking fails with a message pointing nowhere
 near the cause.
+
+**Calling assembly from C++ needs `extern "C"`.** TCC compiles `.CPP` as C++,
+which mangles names, so a plain `extern void far setmode(int);` in a `.CPP` file
+has TLINK hunting for a mangled symbol while the `.OBJ` exports `_setmode`. The
+error names the C++ signature — `Undefined symbol setmode(int) in module
+main.cpp` — which is the clue. The same applies to anything in a `.C` file called
+from a `.CPP` one. Worth remembering that book listings of this vintage are often
+C++ purely because they were `.CPP`: a declaration inside a `for` init is C99 or
+C++, and never legal in the C89 that TCC's C mode implements.
+
+**A hand-written `.ASM` needs `.MODEL`, `.CODE`, `PUBLIC` and `END`.** Without a
+segment declared, TASM reports `Code or data emission to undeclared segment`
+against every instruction line and nothing else; without `END` it finishes with
+`Unexpected end of file encountered`. `.MODEL` must match the memory model in
+`turboc.ts`, which defaults to large — and large is also what makes a bare `PROC`
+default to `FAR`, as a large-model C call requires.
 
 **Monaco is imported through narrow entry points, not the barrel.**
 `edcore.main` is every editing feature and no languages; the C/C++ tokenizer is
@@ -244,6 +266,23 @@ pixels.
 
 In dev, `import("/src/build/turboc.ts")` from the browser console works and is the
 quickest way to compile arbitrary source without touching the UI.
+
+**Install disks can be supplied without a file picker.** Vite serves the project
+root, and the `.7z` archives sit there (gitignored by `*.7z`), so setup and
+toolchain paths can be driven entirely from the console:
+
+```js
+const res = await fetch("/Borland Turbo Assembler 5.0 (3.5-1.44mb).7z");
+const file = new File([await res.blob()], "tasm.7z");
+const { addToToolchain } = await import("/src/toolchain/unpack.ts");
+```
+
+Feeding the real UI instead means building a `DataTransfer`, assigning it to the
+dialog's hidden `input.files`, and dispatching a bubbling `change` — which is
+what actually exercises React's handler. Both were used to verify step 6's
+predecessor; neither needs the disks re-supplied by hand. Note that `import()`
+returns whatever the dev server last served, so reload the page after editing a
+module or the console will keep handing back the old one.
 
 **Browser automation cannot press keys here.** Synthetic key events arrive with
 `event.code` empty and modifiers dropped, so neither the preview's keyboard
