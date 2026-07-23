@@ -4,6 +4,8 @@ import react from "@vitejs/plugin-react";
 // setup to keep in step with this one.
 import { defineConfig } from "vitest/config";
 
+import { cloudflare } from "@cloudflare/vite-plugin";
+
 // js-dos runs DOSBox in a worker and reaches for SharedArrayBuffer, which browsers
 // only hand out to cross-origin-isolated pages. These headers provide that
 // isolation; any production host needs to send them too.
@@ -50,7 +52,7 @@ const securityHeaders = {
 };
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), cloudflare()],
   server: { headers: securityHeaders },
   preview: { headers: securityHeaders },
 
