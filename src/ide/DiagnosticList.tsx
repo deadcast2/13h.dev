@@ -1,4 +1,4 @@
-import { countBySeverity, locate, type Diagnostic } from "../build/diagnostics";
+import { locate, type Diagnostic } from "../build/diagnostics";
 import type { ProjectFile } from "../project/useProject";
 
 /**
@@ -15,15 +15,6 @@ interface Props {
   diagnostics: Diagnostic[];
   files: ProjectFile[];
   onSelect: (fileId: string, line: number) => void;
-}
-
-/** "3 errors, 1 warning" — plural handled, because it is read constantly. */
-export function diagnosticSummary(diagnostics: Diagnostic[]): string | null {
-  const { errors, warnings } = countBySeverity(diagnostics);
-  const parts = [];
-  if (errors) parts.push(`${errors} error${errors === 1 ? "" : "s"}`);
-  if (warnings) parts.push(`${warnings} warning${warnings === 1 ? "" : "s"}`);
-  return parts.length ? parts.join(", ") : null;
 }
 
 export function DiagnosticList({ diagnostics, files, onSelect }: Props) {

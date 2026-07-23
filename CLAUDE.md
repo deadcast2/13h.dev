@@ -11,7 +11,8 @@ work and lets you take it with you: supply install disks, edit a multi-file
 project in Monaco, press Ctrl+B, watch it run, come back to it tomorrow, and
 export it to a file when you want it in another browser.
 
-**Next: step 8, polish.**
+**All eight steps are done.** What follows is maintenance and whatever the next
+idea turns out to be.
 
 Diagnostics land as Monaco markers and as a clickable list beside the log.
 `BuildResult` now carries `diagnostics` alongside `hint` and `log`: the log is
@@ -86,6 +87,7 @@ for it would be mostly scaffolding.
 | `src/build/commandLine.ts` | What TCC is told to build. Pure, and therefore tested. |
 | `src/build/diagnostics.ts` | Reads errors out of the build log. Three formats, one shape. |
 | `src/ide/DiagnosticList.tsx` | The clickable list; the way back to a file you aren't in. |
+| `src/ide/ShortcutsDialog.tsx` | What the keyboard does — mostly Monaco's, and otherwise invisible. |
 | `src/build/turboc.ts` | Runs `TCC.EXE` in a headless DOSBox, reads back log + `.EXE`. |
 | `src/run/runner.ts` | Runs the built `.EXE` in a visible DOSBox, paints to canvas. |
 | `src/dos/emulatorLock.ts` | Serialises all emulator create/destroy. |
@@ -224,6 +226,30 @@ file encountered" lands one line beyond the last, so a 5-line file gets a
 diagnostic at line 6. Monaco is given a clamped line; the list still displays
 what the tool said. The list reports the tool, the marker points somewhere that
 exists, and neither lies about the other.
+
+**A module exporting a component and a plain function cannot be hot-reloaded.**
+`diagnosticSummary` sat next to `DiagnosticList` for exactly as long as it took
+to notice Vite logging `Could not Fast Refresh ("diagnosticSummary" export is
+incompatible)` on every edit to that file. Pure helpers go in a module of their
+own — this one belonged in `diagnostics.ts` with the rest of the logic over
+diagnostics anyway. Worth watching for whenever a `.tsx` file starts exporting
+something that is not a component.
+
+**Only the editor column is fractional, so only the editor shrinks.** Both side
+panes are fixed widths, which means a narrow window takes its width from the one
+column that can least afford it: at 900px the editor was down to 293px, about 35
+columns of C, while the output pane still had 384. There are now two
+breakpoints — the sides narrow at 1180px, and below 940px the output pane moves
+under the editor instead of beside it. If a fourth pane is ever added, give it
+the same treatment rather than another fixed column.
+
+**Monaco's bindings are real but invisible.** The editor arrived with a command
+palette, find and replace, multi-cursor and line-moving already in it, and
+nothing in the interface said so. `ShortcutsDialog` is the only place that does.
+Every binding listed there was checked against `editor.getAction(id)` in the
+running app before being written down — this build imports `edcore.main` rather
+than the barrel, so what is present is not a given, and a reference that lists a
+shortcut which does nothing is worse than no reference.
 
 **One module owns the IndexedDB version.** The toolchain and the projects share
 the `13h.dev` database. Two modules each calling `indexedDB.open` at a version of

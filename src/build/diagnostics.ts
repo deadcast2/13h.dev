@@ -143,7 +143,6 @@ export function locate<T extends { name: string }>(
 export const hasErrors = (diagnostics: readonly Diagnostic[]): boolean =>
   diagnostics.some((diagnostic) => diagnostic.severity === "error");
 
-/** For the summary beside the build status. */
 export function countBySeverity(diagnostics: readonly Diagnostic[]): {
   errors: number;
   warnings: number;
@@ -152,4 +151,18 @@ export function countBySeverity(diagnostics: readonly Diagnostic[]): {
     errors: diagnostics.filter((d) => d.severity === "error").length,
     warnings: diagnostics.filter((d) => d.severity === "warning").length,
   };
+}
+
+/**
+ * "3 errors, 1 warning" for the status bar, or null when there is nothing to
+ * say. Lives here rather than beside the list that displays it: a module
+ * exporting both a component and a plain function cannot be hot-reloaded, and
+ * this is a plain function over diagnostics like everything else in this file.
+ */
+export function diagnosticSummary(diagnostics: readonly Diagnostic[]): string | null {
+  const { errors, warnings } = countBySeverity(diagnostics);
+  const parts: string[] = [];
+  if (errors) parts.push(`${errors} error${errors === 1 ? "" : "s"}`);
+  if (warnings) parts.push(`${warnings} warning${warnings === 1 ? "" : "s"}`);
+  return parts.length > 0 ? parts.join(", ") : null;
 }

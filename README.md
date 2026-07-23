@@ -268,7 +268,7 @@ Two things this does **not** reach:
 
 ## Status
 
-Step 7 of 8. Supply your disks, edit a multi-file project, press Ctrl+B, watch
-your pixels, find your errors marked on the lines that caused them, and carry
-the whole thing out as a file when you want it somewhere else. Still to come:
-polish.
+Done, in the sense that it does what it set out to do. Supply your disks, edit a
+multi-file project, press Ctrl+B, watch your pixels, find your errors marked on
+the lines that caused them, come back to it tomorrow, and carry the whole thing
+out as a file when you want it somewhere else.

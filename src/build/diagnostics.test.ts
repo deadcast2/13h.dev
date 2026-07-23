@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { countBySeverity, hasErrors, locate, parseDiagnostics } from "./diagnostics";
+import {
+  countBySeverity,
+  diagnosticSummary,
+  hasErrors,
+  locate,
+  parseDiagnostics,
+} from "./diagnostics";
 
 /**
  * The fixtures below are real build logs, captured verbatim from real failing
@@ -260,5 +266,22 @@ describe("countBySeverity", () => {
       errors: 0,
       warnings: 0,
     });
+  });
+});
+
+describe("diagnosticSummary", () => {
+  it("counts both kinds, and gets the plurals right", () => {
+    expect(diagnosticSummary(parseDiagnostics(SYNTAX_ERRORS))).toBe(
+      "5 errors, 1 warning",
+    );
+  });
+
+  it("mentions only what there is", () => {
+    expect(diagnosticSummary(parseDiagnostics(WARNING_ONLY))).toBe("1 warning");
+    expect(diagnosticSummary(parseDiagnostics(ASSEMBLER_ERRORS))).toBe("4 errors");
+  });
+
+  it("says nothing about a clean build rather than saying zero", () => {
+    expect(diagnosticSummary(parseDiagnostics(CLEAN_BUILD))).toBeNull();
   });
 });

@@ -349,6 +349,42 @@ kbd {
   min-height: 0;
 }
 
+/*
+ * The editor must never be the narrowest pane.
+ *
+ * Both side columns are fixed and only the editor is fractional, so shrinking
+ * the window takes width from the one column that most needs it: at 900px the
+ * editor was down to 293px — about 35 columns of C — while the output pane
+ * still had 384px. The sides give way first, and below the point where three
+ * columns can honestly fit, the output moves under the editor rather than
+ * competing with it for width.
+ */
+@media (max-width: 1180px) {
+  .ide-body {
+    grid-template-columns: 11rem minmax(0, 1fr) 19rem;
+  }
+}
+
+@media (max-width: 940px) {
+  .ide-body {
+    grid-template-columns: 10rem minmax(0, 1fr);
+    /* The editor keeps the larger share; the output pane is a reference, not
+       the thing being worked in. */
+    grid-template-rows: minmax(0, 3fr) minmax(0, 2fr);
+  }
+
+  .output-pane {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--border);
+  }
+
+  /* The preview and the log side by side, so neither is a letterbox. */
+  .output-pane .preview-slot {
+    flex: 1;
+    min-height: 0;
+  }
+}
+
 .pane {
   display: flex;
   flex-direction: column;
@@ -625,6 +661,60 @@ kbd {
   font-size: 0.75rem;
   line-height: 1.5;
   flex: none;
+}
+
+/* ── Keyboard reference ──────────────────────────────────────────────────── */
+
+.shortcut-heading {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: normal;
+  color: var(--text-dim);
+  text-transform: lowercase;
+}
+
+.shortcut-heading + .shortcut-list {
+  margin-bottom: 1.25rem;
+}
+
+.shortcut-list {
+  margin: 0;
+}
+
+.shortcut {
+  display: grid;
+  /* One column for the keys so the descriptions line up down the page. */
+  grid-template-columns: 10rem minmax(0, 1fr);
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+  font-size: 0.8rem;
+}
+
+.shortcut dt,
+.shortcut dd {
+  margin: 0;
+}
+
+.shortcut dd {
+  color: var(--text-dim);
+}
+
+/* An import that was refused. Full width, because the reason is the point. */
+.ide-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: #2a1416;
+  color: var(--vga-light-red);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.ide-alert span {
+  flex: 1;
 }
 
 /* ── Compiler diagnostics ────────────────────────────────────────────────── */

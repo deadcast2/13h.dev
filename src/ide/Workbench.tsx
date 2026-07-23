@@ -1,26 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { locate } from "../build/diagnostics";
+import { diagnosticSummary, locate } from "../build/diagnostics";
 import { compile, type BuildResult } from "../build/turboc";
 import { CodeEditor, type EditorMarker, type Reveal } from "../editor/CodeEditor";
 import type { StoredProject } from "../project/store";
-import { useAutosave } from "../project/useAutosave";
-import { useProject } from "../project/useProject";
 import {
   downloadText,
   exportFilename,
+  parseExport,
   serializeExport,
   toExport,
 } from "../project/transfer";
+import { useAutosave } from "../project/useAutosave";
+import { useProject } from "../project/useProject";
 import type { ProjectsApi } from "../project/useProjects";
 import { PreviewPane } from "../run/PreviewPane";
 import { stopProgram } from "../run/runner";
 import { AddToolsDialog } from "../toolchain/AddToolsDialog";
 import type { StoredToolchain } from "../toolchain/store";
-import { DiagnosticList, diagnosticSummary } from "./DiagnosticList";
+import { DiagnosticList } from "./DiagnosticList";
 import { EditorTabs } from "./EditorTabs";
 import { FileTree } from "./FileTree";
 import { ProjectMenu } from "./ProjectMenu";
+import { ShortcutsDialog } from "./ShortcutsDialog";
 
 type Phase = "idle" | "building" | "done" | "error";
 
@@ -54,6 +56,7 @@ export function Workbench({
   onForget: () => void;
 }) {
   const [addingTools, setAddingTools] = useState(false);
+  const [showingKeys, setShowingKeys] = useState(false);
   const project = useProject(stored);
   const saveState = useAutosave(stored, project.snapshot);
 
@@ -62,6 +65,7 @@ export function Workbench({
   const [error, setError] = useState<string | null>(null);
   const [executable, setExecutable] = useState<Uint8Array | null>(null);
   const [reveal, setReveal] = useState<Reveal | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const { files } = project;
 
@@ -91,6 +95,31 @@ export function Workbench({
       ];
     });
   }, [result, files]);
+
+  /**
+   * Reading an import, and saying why one was refused.
+   *
+   * The message is shown across the top of the IDE rather than in an `alert`.
+   * A rejection is worth reading — it names the file and the specific reason,
+   * often a filename DOS cannot represent — and a modal that has to be
+   * dismissed before the text can be acted on is the wrong shape for that. It
+   * also blocks the page, which made the failure impossible to drive from a
+   * script when this was being tested.
+   */
+  const importFile = useCallback(
+    async (file: File) => {
+      try {
+        projects.importFrom(parseExport(await file.text()));
+        setImportError(null);
+      } catch (problem) {
+        setImportError(
+          `${file.name} could not be imported. ` +
+            (problem instanceof Error ? problem.message : String(problem)),
+        );
+      }
+    },
+    [projects],
+  );
 
   /** Opening the file first; the editor reveals the line once it is showing. */
   const goTo = useCallback(
@@ -172,7 +201,7 @@ export function Workbench({
           onCreate={projects.create}
           onRename={projects.rename}
           onDelete={projects.remove}
-          onImport={projects.importFrom}
+          onImportFile={(file) => void importFile(file)}
           // From the live snapshot, never from `stored`: that is the copy this
           // workbench was mounted with, and autosave has been writing over it
           // ever since. Exporting it would hand back the project as it was when
@@ -211,6 +240,19 @@ export function Workbench({
           </span>
         )}
       </header>
+
+      {importError && (
+        <p className="ide-alert" role="alert">
+          <span>{importError}</span>
+          <button
+            className="icon-btn"
+            title="Dismiss"
+            onClick={() => setImportError(null)}
+          >
+            ✕
+          </button>
+        </p>
+      )}
 
       <div className="ide-body">
         <FileTree
@@ -300,10 +342,16 @@ export function Workbench({
             {SAVE_LABEL[saveState]}
           </span>{" "}
           · {project.files.length} files ·{" "}
+          <button className="link-btn" onClick={() => setShowingKeys(true)}>
+            keyboard
+          </button>{" "}
+          ·{" "}
           <a href="https://github.com/deadcast2/13h.dev">source</a> ·{" "}
           <a href="https://www.gnu.org/licenses/old-licenses/gpl-2.0.html">GPL-2.0</a>
         </span>
       </footer>
+
+      {showingKeys && <ShortcutsDialog onClose={() => setShowingKeys(false)} />}
 
       {addingTools && (
         <AddToolsDialog
