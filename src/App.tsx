@@ -77,6 +77,7 @@ export function App() {
         stored={projects.current}
         projects={projects}
         toolchain={toolchain}
+        onToolchainChanged={setToolchain}
         onForget={async () => {
           await clearToolchain();
           setToolchain(null);

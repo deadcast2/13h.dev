@@ -40,6 +40,42 @@ function openDatabase(): Promise<IDBDatabase> {
   });
 }
 
+/**
+ * Runs several requests inside one transaction, closing the connection whatever
+ * happens.
+ *
+ * `withStore` below covers a single request, which cannot express
+ * read-modify-write: two callers each reading, merging and putting would lose
+ * whichever change landed first. IndexedDB transactions are atomic, so issuing
+ * both requests here removes that window entirely.
+ *
+ * Every request must be issued from inside the previous one's callback. Awaiting
+ * anything that isn't an IndexedDB request lets the transaction auto-commit out
+ * from under the rest of the work, which is why this hands out `resolve` and
+ * `reject` rather than taking an async function.
+ */
+export async function withTransaction<T>(
+  store: string,
+  mode: IDBTransactionMode,
+  operation: (
+    store: IDBObjectStore,
+    resolve: (value: T) => void,
+    reject: (reason: Error) => void,
+  ) => void,
+): Promise<T> {
+  const db = await openDatabase();
+  try {
+    return await new Promise<T>((resolve, reject) => {
+      const transaction = db.transaction(store, mode);
+      transaction.onabort = () =>
+        reject(transaction.error ?? new Error("Local database transaction aborted."));
+      operation(transaction.objectStore(store), resolve, reject);
+    });
+  } finally {
+    db.close();
+  }
+}
+
 /** Wraps a store operation, closing the connection whatever happens. */
 export async function withStore<T>(
   store: string,

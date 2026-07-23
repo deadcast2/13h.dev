@@ -24,8 +24,16 @@ export interface UnpackedToolchain {
   totalBytes: number;
 }
 
-/** Anything worth trying to open. Extensions are a hint; 7-Zip sniffs contents. */
-const CONTAINER = /\.(7z|zip|img|ima|dsk|cab|arj|lzh|lha|rar|tar|gz|exe)$/i;
+/**
+ * Anything worth trying to open. Extensions are a hint; 7-Zip sniffs contents.
+ *
+ * `.pak` is Turbo Assembler's, and is the fourth container format this has had
+ * to learn. It turns out to be plain LHA — `-lh5-` four bytes in — which 7-Zip
+ * has read all along; the extension was the only thing standing in the way. Its
+ * absence meant a TASM 5.0 drop unpacked to a heap of .PAK files and no
+ * assembler, with nothing to say why.
+ */
+const CONTAINER = /\.(7z|zip|img|ima|dsk|cab|arj|lzh|lha|pak|rar|tar|gz|exe)$/i;
 
 /**
  * Borland split archives: CMDLINE.CA1, CMDLINE.CA2, HELP.CA1..CA3 and so on.
@@ -54,8 +62,12 @@ const WANTED_PROGRAMS = new Set([
   // Not on any Turbo C++ disk — it was a separate product — but kept if supplied.
   // Turbo C++ 1.01 hands inline asm to an external assembler, so without this a
   // program containing an `asm` block fails with "Unable to execute command
-  // 'tasm.exe'". 3.0's built-in assembler makes it unnecessary there.
+  // 'tasm.exe'". 3.0's built-in assembler covers inline asm but not a standalone
+  // .ASM file, which goes to TASM on both versions.
   "TASM.EXE",
+  // TASM's DPMI-extended twin, for sources too big for the real-mode one. TCC
+  // never calls it, but it costs little and is the documented escape hatch.
+  "TASMX.EXE",
 
   // Turbo C++ 3.0's compiler runs in protected mode and refuses to start without
   // its DPMI server: "Failed to locate DPMI server (DPMI16BI.OVL)". 1.01's is a
@@ -94,6 +106,16 @@ const REQUIRED: { label: string; test: (paths: string[]) => boolean }[] = [
     test: (p) => p.includes("TC/INCLUDE/STDIO.H"),
   },
 ];
+
+/**
+ * Finding one of these in a tree marks that tree as an assembler drop.
+ *
+ * Turbo Assembler 5.0 also ships TLINK.EXE, MAKE.EXE and TLIB.EXE — all of them
+ * things `classify` wants — and its TLINK is from 1996 against a compiler from
+ * 1990. Whichever copy won used to depend on the order files came off the drop,
+ * which is no way to decide which linker someone's builds go through.
+ */
+const ASSEMBLER_MARKERS = new Set(["TASM.EXE", "TASMX.EXE"]);
 
 /** Where a given file belongs in the installed tree, or null to discard it. */
 function classify(name: string): string | null {
@@ -229,16 +251,33 @@ function walk(sevenZip: SevenZip, dir: string, out: string[] = []): string[] {
  *  the page for the whole extraction with no progress visible. */
 const yieldToUi = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-export async function unpackToolchain(
+const WORK = "/work";
+const STAGE = "/stage";
+
+/** Which of the dropped inputs a file ultimately came from. */
+function provenance(path: string): string {
+  const relative = path.startsWith(`${WORK}/`) ? path.slice(WORK.length + 1) : path;
+  return relative.split("/")[0] ?? "";
+}
+
+function exists(sevenZip: SevenZip, path: string): boolean {
+  try {
+    sevenZip.fs.stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Expands everything that was dropped and returns the files worth keeping,
+ * keyed by where they belong in the installed tree.
+ */
+async function collect(
+  sevenZip: SevenZip,
   files: File[],
-  onProgress: (progress: UnpackProgress) => void = () => {},
-): Promise<UnpackedToolchain> {
-  if (files.length === 0) throw new Error("No files were given.");
-
-  onProgress({ stage: "Loading 7-Zip…" });
-  const sevenZip = await loadSevenZip();
-
-  const WORK = "/work";
+  onProgress: (progress: UnpackProgress) => void,
+): Promise<Map<string, Uint8Array>> {
   sevenZip.fs.mkdir(WORK);
 
   onProgress({ stage: "Reading files…" });
@@ -280,24 +319,93 @@ export async function unpackToolchain(
   onProgress({ stage: "Sorting toolchain…" });
   await yieldToUi();
 
-  const collected = new Map<string, Uint8Array>();
+  onProgress({ stage: "Sorting toolchain…" });
+  await yieldToUi();
+
+  // Gathered before anything is chosen, because which tree a duplicate should
+  // come from cannot be known until every tree has been seen.
+  const candidates = new Map<string, { path: string; root: string }[]>();
+  const assemblerRoots = new Set<string>();
+
   for (const path of walk(sevenZip, WORK)) {
     const name = (path.split("/").pop() ?? path).toUpperCase();
     const destination = classify(name);
     if (!destination) continue;
 
+    const root = provenance(path);
+    if (ASSEMBLER_MARKERS.has(name)) assemblerRoots.add(root);
+
     const target = `${destination}/${name}`;
-    // First writer wins. Duplicates across disks are byte-identical in practice,
-    // and preferring the earlier one keeps the result stable.
-    if (collected.has(target)) continue;
+    if (!candidates.has(target)) candidates.set(target, []);
+    candidates.get(target)!.push({ path, root });
+  }
+
+  const collected = new Map<string, Uint8Array>();
+  for (const [target, options] of candidates) {
+    // A file the assembler also supplies is only taken when nothing else
+    // supplied it — so TASM.EXE comes through, and TLINK.EXE stays the
+    // compiler's. Among equals the first wins: duplicates across the disks of
+    // one product are byte-identical in practice.
+    const chosen = options.find(({ root }) => !assemblerRoots.has(root)) ?? options[0];
 
     try {
-      collected.set(target, sevenZip.fs.readFile(path, { encoding: "binary" }));
+      collected.set(target, sevenZip.fs.readFile(chosen.path, { encoding: "binary" }));
     } catch {
-      // Unreadable file; the required-file check below will catch it if it
-      // turns out to have mattered.
+      // Unreadable file; the required-file check will catch it if it mattered.
     }
   }
+
+  return collected;
+}
+
+/** Zips whatever is staged, and measures it. */
+function packStage(sevenZip: SevenZip): UnpackedToolchain {
+  // Archive paths are relative to the working directory, giving TC/BIN/... rather
+  // than /stage/TC/BIN/...
+  sevenZip.fs.chdir(STAGE);
+  const OUT = "/toolchain.zip";
+  // Written by 7-Zip rather than a JavaScript zip library, because js-dos
+  // extracts the bundle into the guest filesystem and needs the archive to
+  // contain real directory entries. fflate's zipSync emits file records only, and
+  // DOSBox then fails with "TC/INCLUDE: No such file or directory" and comes up
+  // with no toolchain at all — a build that simply hangs rather than reporting
+  // anything useful.
+  const packLog = sevenZip.run(["a", "-tzip", "-mx6", OUT, "TC"]);
+
+  let zip: Uint8Array;
+  try {
+    zip = sevenZip.fs.readFile(OUT, { encoding: "binary" });
+  } catch {
+    throw new Error(`Could not pack the toolchain.\n\n${packLog}`);
+  }
+
+  const staged = walk(sevenZip, STAGE);
+  const totalBytes = staged.reduce((n, path) => {
+    try {
+      return n + sevenZip.fs.stat(path).size;
+    } catch {
+      return n;
+    }
+  }, 0);
+
+  return { zip, fileCount: staged.length, totalBytes };
+}
+
+function writeToStage(sevenZip: SevenZip, target: string, bytes: Uint8Array): void {
+  const directory = target.slice(0, target.lastIndexOf("/"));
+  ensureDir(sevenZip, `${STAGE}/${directory}`);
+  sevenZip.fs.writeFile(`${STAGE}/${target}`, bytes);
+}
+
+export async function unpackToolchain(
+  files: File[],
+  onProgress: (progress: UnpackProgress) => void = () => {},
+): Promise<UnpackedToolchain> {
+  if (files.length === 0) throw new Error("No files were given.");
+
+  onProgress({ stage: "Loading 7-Zip…" });
+  const sevenZip = await loadSevenZip();
+  const collected = await collect(sevenZip, files, onProgress);
 
   const paths = [...collected.keys()];
   const missing = REQUIRED.filter((item) => !item.test(paths)).map((i) => i.label);
@@ -314,32 +422,65 @@ export async function unpackToolchain(
   onProgress({ stage: "Packing…", detail: `${paths.length} files` });
   await yieldToUi();
 
-  // Written by 7-Zip rather than a JavaScript zip library, because js-dos
-  // extracts the bundle into the guest filesystem and needs the archive to
-  // contain real directory entries. fflate's zipSync emits file records only, and
-  // DOSBox then fails with "TC/INCLUDE: No such file or directory" and comes up
-  // with no toolchain at all — a build that simply hangs rather than reporting
-  // anything useful.
-  const STAGE = "/stage";
+  for (const [target, bytes] of collected) writeToStage(sevenZip, target, bytes);
+  return packStage(sevenZip);
+}
+
+export interface ToolchainAddition extends UnpackedToolchain {
+  /** What the drop actually contributed, as TC/BIN/TASM.EXE and the like. */
+  added: string[];
+}
+
+/**
+ * Merges more files into a toolchain that is already installed.
+ *
+ * The assembler was never on the Turbo C++ disks, so wanting it later is the
+ * normal case rather than an afterthought — and without this the only route to
+ * it is to discard the compiler and supply everything over again.
+ *
+ * What is already installed always wins. That keeps the compiler paired with the
+ * linker it was verified against no matter what a later drop contains, and makes
+ * adding the same archive twice a no-op rather than a coin toss.
+ */
+export async function addToToolchain(
+  files: File[],
+  existingZip: Uint8Array,
+  onProgress: (progress: UnpackProgress) => void = () => {},
+): Promise<ToolchainAddition> {
+  if (files.length === 0) throw new Error("No files were given.");
+
+  onProgress({ stage: "Loading 7-Zip…" });
+  const sevenZip = await loadSevenZip();
+  const collected = await collect(sevenZip, files, onProgress);
+
+  onProgress({ stage: "Merging…" });
+  await yieldToUi();
+
+  const EXISTING = "/existing.zip";
+  sevenZip.fs.writeFile(EXISTING, existingZip);
+  const extractLog = sevenZip.run(["x", EXISTING, `-o${STAGE}`, "-y"]);
+  if (!exists(sevenZip, `${STAGE}/TC`)) {
+    throw new Error(`Could not read the installed toolchain.\n\n${extractLog}`);
+  }
+
+  const added: string[] = [];
   for (const [target, bytes] of collected) {
-    const directory = target.slice(0, target.lastIndexOf("/"));
-    ensureDir(sevenZip, `${STAGE}/${directory}`);
-    sevenZip.fs.writeFile(`${STAGE}/${target}`, bytes);
+    if (exists(sevenZip, `${STAGE}/${target}`)) continue;
+    writeToStage(sevenZip, target, bytes);
+    added.push(target);
   }
 
-  // Archive paths are relative to the working directory, giving TC/BIN/... rather
-  // than /stage/TC/BIN/...
-  sevenZip.fs.chdir(STAGE);
-  const OUT = "/toolchain.zip";
-  const packLog = sevenZip.run(["a", "-tzip", "-mx6", OUT, "TC"]);
-
-  let zip: Uint8Array;
-  try {
-    zip = sevenZip.fs.readFile(OUT, { encoding: "binary" });
-  } catch {
-    throw new Error(`Could not pack the toolchain.\n\n${packLog}`);
+  if (added.length === 0) {
+    throw new Error(
+      "Nothing new was found in those files.\n\n" +
+        "Everything usable in them is already installed. If you were adding an " +
+        "assembler, check that the drop really contains TASM.EXE — Turbo " +
+        "Assembler 5.0 keeps it in CMD16.PAK, on the third disk.",
+    );
   }
 
-  const totalBytes = [...collected.values()].reduce((n, b) => n + b.length, 0);
-  return { zip, fileCount: paths.length, totalBytes };
+  onProgress({ stage: "Packing…", detail: `${added.length} new files` });
+  await yieldToUi();
+
+  return { ...packStage(sevenZip), added };
 }

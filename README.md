@@ -55,8 +55,8 @@ without being assembled on its own, the way `.H` does for C.
 That needs a `TASM.EXE`, and this is the one thing the built-in assembler does
 *not* cover — 3.0 assembles inline `asm` itself, but a standalone `.ASM` file
 goes to TASM on both versions. Turbo Assembler was sold as a separate product, so
-it is on none of the Turbo C++ disks; supply a copy alongside them and it is
-picked up automatically. Without one, a build that needs to assemble stops with
+it is on none of the Turbo C++ disks. Without one, a build that needs to assemble
+stops with
 
 ```
 Error: Unable to execute command 'tasm.exe'
@@ -64,6 +64,19 @@ Error: Unable to execute command 'tasm.exe'
 
 which the build panel explains rather than leaving you to work out whose program
 `tasm.exe` was supposed to be.
+
+**Adding one:** *add tools* in the status bar takes Turbo Assembler's disks the
+same way setup took the compiler's, and merges them into what is already
+installed — you don't supply the compiler again. Turbo Assembler 5.0 keeps its
+files in `.PAK` archives, which are LHA underneath and unpack like everything
+else.
+
+Anything already installed wins, always. Turbo Assembler ships its own `TLINK`,
+`MAKE` and `TLIB`, and its linker is from 1996 while Turbo C++ 1.01's is from
+1990; letting a later drop replace them would silently change which linker your
+builds go through. So an addition contributes only what was missing, which also
+makes adding the same disks twice a no-op rather than a coin toss. Verified end
+to end: TASM 4.1 assembles, TLINK 3.01 links, and the resulting program runs.
 
 Both are supported and verified end to end; the build flags, `TURBOC.CFG` and
 `C0x.OBJ`/`Cx.LIB` naming are identical between them.

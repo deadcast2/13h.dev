@@ -50,7 +50,9 @@ browser and reading pixels back off the canvas.
 | `src/project/store.ts` | Projects in IndexedDB. Stored by name, never by id. |
 | `src/project/dosNames.ts` | 8.3 validation and the sort order the UI displays. |
 | `src/storage/db.ts` | The one IndexedDB connection. Owns the version number. |
-| `src/toolchain/unpack.ts` | Disks → `C:\TC` tree. Expands containers until none remain, then sorts files by type. |
+| `src/toolchain/unpack.ts` | Disks → `C:\TC` tree. Expands containers until none remain, then sorts files by type. `addToToolchain` merges into an installed one. |
+| `src/toolchain/DiskDropZone.tsx` | The drop target, shared by setup and additions. |
+| `src/toolchain/AddToolsDialog.tsx` | Adding an assembler without re-supplying the compiler. |
 | `src/toolchain/sevenZip.ts` | 7-Zip wasm loader. Dynamically imported; 1.65 MB. |
 | `src/toolchain/store.ts` | IndexedDB cache of the unpacked toolchain. |
 | `src/toolchain/SetupPane.tsx` | First-run drop zone. |
@@ -100,6 +102,22 @@ cannot resolve, which is what `src/editor/monaco-esm.d.ts` exists to satisfy.
 The worker must be bundled rather than loaded from a CDN — this page is
 cross-origin isolated, and COEP blocks third-party scripts outright.
 
+**Turbo Assembler's `.PAK` files are LHA.** `-lh5-` four bytes in, and 7-Zip has
+read the format all along — including the wasm build, checked directly. The
+extension simply wasn't in `CONTAINER`, so a TASM 5.0 drop unpacked to a heap of
+`.PAK` files and no assembler, with nothing to say why. `TASM.EXE` and
+`TASMX.EXE` live in `CMD16.PAK` on disk 3; `TASM.EXE` reports itself as version
+4.1 even in the 5.0 package, because 5.0 is the 32-bit assembler's version.
+
+**Turbo Assembler also ships TLINK, MAKE and TLIB.** All three are things
+`classify()` wants, and TASM 5.0's TLINK is from 1996 against a compiler from
+1990. Which copy won used to fall out of traversal order — that is, out of which
+file the user happened to drop first. The rule now: a tree containing
+`TASM.EXE`/`TASMX.EXE` is an assembler drop, and a file it provides is taken only
+when nothing else provided it. `addToToolchain` gets the same outcome from the
+other direction by letting what is already installed win. Confirmed in a real
+build: TASM 4.1 assembles and TLINK **3.01** links.
+
 **js-dos needs real directory entries in bundle zips.** `fflate`'s `zipSync` emits
 file records only, and DOSBox then reports `TC/INCLUDE: No such file or directory`
 and comes up with no toolchain, and the build hangs. The toolchain zip is written
@@ -148,11 +166,27 @@ issuing duplicates after a reload. Names are already unique and already
 validated, so they are the key, and the stored shape stays legible enough to
 become the export format.
 
-**Switching projects must re-read from storage.** The workbench autosaves
-contents straight to IndexedDB without telling `useProjects`, so the copies in
-its `projects` list go stale the moment anything is typed. They are fine for
-showing names; handing one back to the workbench would silently revert the
-session's work. `withFreshList` exists for this.
+**Two things write to a project, and they must never write the same fields.**
+The workbench owns the contents and autosaves them continuously; `useProjects`
+owns the name and which project was opened last. Both used to write the whole
+record, each built from a read taken moments earlier, so either could quietly
+undo the other — renaming could restore file contents from before the last few
+keystrokes, and opening a project could do the same. Whole-record `saveProject`
+is now only for creating one; everything else goes through `updateProject`,
+which merges a patch inside a single transaction. If a third writer ever
+appears, give it its own fields.
+
+That the fields are disjoint is what makes it correct; the transaction is what
+makes it atomic. `withStore` covers one request and cannot express
+read-modify-write, hence `withTransaction` — and note that awaiting anything
+that isn't an IndexedDB request inside one lets the transaction auto-commit out
+from under the remaining work, which is why it hands out `resolve`/`reject`
+instead of taking an async function.
+
+The copies in `useProjects`'s list still go stale the moment anything is typed.
+They are fine for showing names, and `withFreshList` keeps them honest, but
+never hand one back to the workbench as the current project — take what
+`updateProject` returns, which came from the store.
 
 **The autosave debounce needs an unmount flush.** Switching projects remounts the
 workbench, which cancels the pending timer. Without the flush in the cleanup, the

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { saveProject, type StoredProject } from "./store";
+import { updateProject, type StoredProject } from "./store";
 import type { ProjectSnapshot } from "./useProject";
 
 /**
@@ -22,8 +22,11 @@ export function useAutosave(
 ): SaveState {
   const [state, setState] = useState<SaveState>("saved");
 
-  // The identity fields — name especially — can change from outside this hook,
-  // and a save must not write back the copy captured when the debounce started.
+  // Only the id is taken from the project: this hook owns the contents and
+  // nothing else, so it writes the contents and nothing else. The name and
+  // lastOpenedAt belong to the project list, and were previously carried along
+  // in every save from a copy captured before the debounce started — which is
+  // how a save could put back a name the user had just changed.
   const latest = useRef(project);
   latest.current = project;
 
@@ -36,8 +39,9 @@ export function useAutosave(
     pending.current = null;
 
     try {
-      await saveProject({
-        ...latest.current,
+      // A null result means the project was deleted while this was pending;
+      // there is nothing left to save and writing would bring it back.
+      await updateProject(latest.current.id, {
         ...snapshotToWrite,
         updatedAt: Date.now(),
       });

@@ -6,6 +6,7 @@ import {
   listProjects,
   newProject,
   saveProject,
+  updateProject,
   type StoredProject,
 } from "./store";
 
@@ -44,13 +45,19 @@ export function useProjects(): ProjectsApi {
   const [ready, setReady] = useState(false);
   const [persistent, setPersistent] = useState(true);
 
-  /** Marks a project as the one to reopen next visit, and makes it current. */
+  /**
+   * Marks a project as the one to reopen next visit, and makes it current.
+   *
+   * Touches the one field rather than writing back the copy from `list`. That
+   * copy is a snapshot of a read, and the workbench has very possibly saved over
+   * it since; putting it back would undo whatever was typed in between. The
+   * record that comes back is the current one, which is also what makes it safe
+   * to hand to the workbench.
+   */
   const openFrom = useCallback(async (list: StoredProject[], id: string) => {
-    const target = list.find((project) => project.id === id);
-    if (!target) return;
+    const opened = await updateProject(id, { lastOpenedAt: Date.now() });
+    if (!opened) return;
 
-    const opened = { ...target, lastOpenedAt: Date.now() };
-    await saveProject(opened);
     setProjects(list.map((project) => (project.id === id ? opened : project)));
     setCurrent(opened);
   }, []);
@@ -123,15 +130,12 @@ export function useProjects(): ProjectsApi {
   const rename = useCallback(
     (id: string, name: string) => {
       void withFreshList(async (list) => {
-        const target = list.find((project) => project.id === id);
-        if (!target) return;
+        // Only the name; the file contents are the workbench's and are very
+        // likely newer than anything this read.
+        const renamed = await updateProject(id, { name, updatedAt: Date.now() });
+        if (!renamed) return;
 
-        const renamed = { ...target, name, updatedAt: Date.now() };
-        await saveProject(renamed);
-        setProjects(list.map((p) => (p.id === id ? renamed : p)));
-        // The workbench holds this record too, and writes it back on every
-        // autosave; leaving it stale would restore the old name on the next
-        // keystroke.
+        setProjects(list.map((project) => (project.id === id ? renamed : project)));
         setCurrent((open) => (open?.id === id ? { ...open, name } : open));
       });
     },

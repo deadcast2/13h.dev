@@ -1,5 +1,5 @@
 import type { SourceFile } from "../build/turboc";
-import { PROJECTS_STORE, withStore } from "../storage/db";
+import { PROJECTS_STORE, withStore, withTransaction } from "../storage/db";
 
 /**
  * Local persistence for the user's projects.
@@ -66,10 +66,55 @@ export async function listProjects(): Promise<StoredProject[]> {
   return all.sort((a, b) => b.lastOpenedAt - a.lastOpenedAt);
 }
 
+/** Writes a whole record. Only right when there is nothing there to preserve. */
 export function saveProject(project: StoredProject): Promise<void> {
   return enqueue(async () => {
     await withStore(PROJECTS_STORE, "readwrite", (store) => store.put(project));
   });
+}
+
+/**
+ * Merges `changes` into a stored project, and returns what it became.
+ *
+ * This exists so that the two things writing to a project never write the same
+ * fields. The workbench owns its contents and autosaves them continuously; the
+ * project list owns the name and which project was last opened. Both used to
+ * write the whole record, each built from a read taken moments earlier, so
+ * either could quietly undo the other — a rename could restore file contents
+ * from before the last few keystrokes, and opening a project could do the same.
+ *
+ * The read and the write share one transaction, so nothing interleaves; the
+ * queue then keeps them ordered against the plain writes above. Returns null if
+ * the project has since been deleted, which must not resurrect it.
+ */
+export function updateProject(
+  id: string,
+  changes: Partial<StoredProject>,
+): Promise<StoredProject | null> {
+  return enqueue(() =>
+    withTransaction<StoredProject | null>(
+      PROJECTS_STORE,
+      "readwrite",
+      (store, resolve, reject) => {
+        const read = store.get(id);
+        read.onerror = () =>
+          reject(read.error ?? new Error("Could not read the project."));
+        read.onsuccess = () => {
+          const existing = read.result as StoredProject | undefined;
+          if (!existing) {
+            resolve(null);
+            return;
+          }
+
+          const updated = { ...existing, ...changes, id: existing.id };
+          const write = store.put(updated);
+          write.onerror = () =>
+            reject(write.error ?? new Error("Could not save the project."));
+          write.onsuccess = () => resolve(updated);
+        };
+      },
+    ),
+  );
 }
 
 export function deleteProject(id: string): Promise<void> {

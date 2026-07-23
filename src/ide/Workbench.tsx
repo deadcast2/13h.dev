@@ -8,6 +8,7 @@ import { useProject } from "../project/useProject";
 import type { ProjectsApi } from "../project/useProjects";
 import { PreviewPane } from "../run/PreviewPane";
 import { stopProgram } from "../run/runner";
+import { AddToolsDialog } from "../toolchain/AddToolsDialog";
 import type { StoredToolchain } from "../toolchain/store";
 import { EditorTabs } from "./EditorTabs";
 import { FileTree } from "./FileTree";
@@ -35,13 +36,16 @@ export function Workbench({
   stored,
   projects,
   toolchain,
+  onToolchainChanged,
   onForget,
 }: {
   stored: StoredProject;
   projects: ProjectsApi;
   toolchain: StoredToolchain;
+  onToolchainChanged: (toolchain: StoredToolchain) => void;
   onForget: () => void;
 }) {
+  const [addingTools, setAddingTools] = useState(false);
   const project = useProject(stored);
   const saveState = useAutosave(stored, project.snapshot);
 
@@ -215,6 +219,10 @@ export function Workbench({
         <span>
           Turbo C++ from <strong>{toolchain.sourceName}</strong> · {toolchain.fileCount}{" "}
           files · {(toolchain.zip.length / 1024).toFixed(0)} KB cached ·{" "}
+          <button className="link-btn" onClick={() => setAddingTools(true)}>
+            add tools
+          </button>{" "}
+          ·{" "}
           <button className="link-btn" onClick={onForget}>
             remove
           </button>
@@ -228,6 +236,14 @@ export function Workbench({
           <a href="https://www.gnu.org/licenses/old-licenses/gpl-2.0.html">GPL-2.0</a>
         </span>
       </footer>
+
+      {addingTools && (
+        <AddToolsDialog
+          toolchain={toolchain}
+          onUpdated={onToolchainChanged}
+          onClose={() => setAddingTools(false)}
+        />
+      )}
     </div>
   );
 }
