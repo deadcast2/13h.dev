@@ -717,6 +717,19 @@ kbd {
   flex: 1;
 }
 
+/* A neutral notice — a copied share link — rather than a refusal. */
+.ide-alert.is-info {
+  background: #0c1f22;
+  color: var(--vga-light-cyan);
+}
+
+/* Share notices can carry a URL and a deliberate line break, and the URL must be
+   allowed to wrap rather than force the page wide. */
+.ide-alert-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* ── Compiler diagnostics ────────────────────────────────────────────────── */
 
 .diagnostics {

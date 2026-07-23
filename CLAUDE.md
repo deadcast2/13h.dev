@@ -36,14 +36,15 @@ npm run test:watch
 npm run build
 ```
 
-**The suite covers pure logic, storage, and the concurrency traps.** 169 tests:
+**The suite covers pure logic, storage, and the concurrency traps.** 189 tests:
 
 | File | What it holds down |
 | --- | --- |
 | `build/commandLine.test.ts` | Which files reach TCC; the 127-character limit, from both sides. |
 | `build/diagnostics.test.ts` | Three tools' message formats, against real captured logs. |
 | `project/dosNames.test.ts` | Every 8.3 rejection, device names, sort order. |
-| `project/transfer.test.ts` | Export round trip; every case an import refuses. |
+| `project/transfer.test.ts` | Export round trip; every case an import refuses; the `.EXE` download name. |
+| `project/shareLink.test.ts` | The link round trip, compression, and every fragment it refuses. |
 | `project/store.test.ts` | The two-writer merge, against real IndexedDB semantics. |
 | `project/useAutosave.test.ts` | Debounce, unmount flush, and which fields it writes. |
 | `project/useProjects.test.ts` | StrictMode seeding, import, delete, storage failure. |
@@ -77,7 +78,8 @@ for it would be mostly scaffolding.
 | `src/project/useProjects.ts` | Which projects exist and which one is open. |
 | `src/project/useAutosave.ts` | Debounced write-back; owns the saved/saving state. |
 | `src/project/store.ts` | Projects in IndexedDB. Stored by name, never by id. |
-| `src/project/transfer.ts` | The `.13h.json` export format, its reader, and the download. |
+| `src/project/transfer.ts` | The `.13h.json` export format, its reader, and the file downloads. |
+| `src/project/shareLink.ts` | A project as a compressed URL fragment: the same export, encoded. |
 | `src/project/dosNames.ts` | 8.3 validation and the sort order the UI displays. |
 | `src/storage/db.ts` | The one IndexedDB connection. Owns the version number. |
 | `src/toolchain/unpack.ts` | Disks → `C:\TC` tree. Expands containers until none remain, then sorts files by type. `addToToolchain` merges into an installed one. |
@@ -374,7 +376,34 @@ the project that wrote it, and there is no answer worth guessing for two
 differing `MAIN.C`s. `importFrom` is also the one mutation in `useProjects` that
 deliberately skips `withFreshList`: it has somewhere useful to go when storage
 fails — leaving the imported project open in memory — which is exactly the case
-a private-mode user needs.
+a private-mode user needs. A shared link arrives the same way — a new project,
+opened, never overwriting — through the same `importedProject` builder, so the
+two carry-in paths cannot drift apart.
+
+**A share link is the export again, in the URL fragment.** No backend exists to
+hold a paste, and `require-corp` would block a third-party one, so a shared
+project rides in `#p=<base64url>` — deflate-compressed export JSON, decoded by
+the same `parseExport` a file gets. The fragment is the right half of the URL on
+purpose: the browser never sends it to the server, so the project stays between
+the two people who have the link. Three things learned wiring it up. **A shared
+link only imports on a cold load**: `useProjects`' init effect runs once per
+mount, and navigating to a URL that differs only in its `#…` is a hash change,
+not a reload — the effect never re-runs and nothing imports. This is invisible in
+the app (you always arrive cold) but a trap when driving it, where a `navigate`
+to `…/#p=…` must be followed by a real reload. **The fragment read is split from
+the decode and kept synchronous** (`takeShareUrl` reads and strips; `parseShareLink`
+decodes): an ordinary visit — every visit but a shared one — reads storage on the
+next line, and a stray `await` before it widens unrelated init races. **The
+fragment is stripped the instant one is seen**, before decoding, so a wall of
+base64 never survives a reload and a damaged link stops erroring after the first.
+
+**Two small browser details in `downloadText`.** The anchor must be in the
+document for Firefox to honour a synthetic click, and the object URL must
+outlive the click — revoking in the same tick cancels the download in Chrome,
+which only shows up on a fast machine. And a file input keeps its value, so
+picking the same file twice in a row fires no second `change` event; the value
+is cleared in the handler, because re-importing after a mistake is the obvious
+thing to try.
 
 **Two small browser details in `downloadText`.** The anchor must be in the
 document for Firefox to honour a synthetic click, and the object URL must

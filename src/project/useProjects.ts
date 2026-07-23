@@ -9,6 +9,7 @@ import {
   updateProject,
   type StoredProject,
 } from "./store";
+import { parseShareLink, takeShareUrl } from "./shareLink";
 import { uniqueProjectName, type ExportedProject } from "./transfer";
 
 /**
@@ -23,6 +24,24 @@ import { uniqueProjectName, type ExportedProject } from "./transfer";
 
 const STARTER_NAME = "Mode 13h starter";
 
+/**
+ * A stored project built from carried-in content — an imported file or a shared
+ * link. Always a fresh project under a name that doesn't collide, keeping only
+ * the tab layout the source recorded. The two carry-in paths must agree exactly
+ * on this, so it lives in one place.
+ */
+function importedProject(
+  exported: ExportedProject,
+  existing: StoredProject[],
+): StoredProject {
+  return {
+    ...newProject(uniqueProjectName(exported.name, existing), exported.files),
+    // newProject opens everything; a carried-in project knows its own tabs.
+    openNames: exported.openNames,
+    activeName: exported.activeName,
+  };
+}
+
 export interface ProjectsApi {
   projects: StoredProject[];
   /** null only while the first read is in flight. */
@@ -34,6 +53,13 @@ export interface ProjectsApi {
    * pretending the work is safe.
    */
   persistent: boolean;
+  /**
+   * A share link the page was opened from that could not be read, or null. Set
+   * once at startup and shown wherever there is room; the visit continues as an
+   * ordinary one regardless.
+   */
+  linkError: string | null;
+  dismissLinkError: () => void;
   switchTo: (id: string) => void;
   create: (name: string) => void;
   /** Always a new project; an import never writes over one that is already here. */
@@ -47,6 +73,7 @@ export function useProjects(): ProjectsApi {
   const [current, setCurrent] = useState<StoredProject | null>(null);
   const [ready, setReady] = useState(false);
   const [persistent, setPersistent] = useState(true);
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   /**
    * Marks a project as the one to reopen next visit, and makes it current.
@@ -78,20 +105,49 @@ export function useProjects(): ProjectsApi {
     initialised.current = true;
 
     void (async () => {
+      // A share link, if the page was opened from one. The URL is read and the
+      // fragment stripped synchronously, so an ordinary visit reaches storage on
+      // the same tick it always did; only a genuine link pays for the decode. A
+      // damaged one is reported and then set aside — the visit carries on as an
+      // ordinary one rather than dead-ending on someone else's bad URL.
+      let shared: ExportedProject | null = null;
+      const shareUrl = takeShareUrl();
+      if (shareUrl) {
+        try {
+          shared = await parseShareLink(shareUrl);
+        } catch (problem) {
+          setLinkError(problem instanceof Error ? problem.message : String(problem));
+        }
+      }
+
       try {
         let list = await listProjects();
-        if (list.length === 0) {
-          const starter = newProject(STARTER_NAME, STARTER_PROJECT);
-          await saveProject(starter);
-          list = [starter];
+
+        if (shared) {
+          // A shared link always arrives as a new project and is opened, exactly
+          // as an imported file does — never a merge, never an overwrite.
+          const created = importedProject(shared, list);
+          await saveProject(created);
+          await openFrom([created, ...list], created.id);
+        } else {
+          if (list.length === 0) {
+            const starter = newProject(STARTER_NAME, STARTER_PROJECT);
+            await saveProject(starter);
+            list = [starter];
+          }
+          // listProjects sorts most-recently-opened first, so this resumes
+          // wherever the last visit left off.
+          await openFrom(list, list[0].id);
         }
-        // listProjects sorts most-recently-opened first, so this resumes
-        // wherever the last visit left off.
-        await openFrom(list, list[0].id);
       } catch {
-        const starter = newProject(STARTER_NAME, STARTER_PROJECT);
-        setProjects([starter]);
-        setCurrent(starter);
+        // Storage unavailable — private mode, or blocked. Keep whatever should be
+        // open in memory. A carried-in shared project above all: a browser that
+        // cannot store is precisely the one that needed the link to work.
+        const fallback = shared
+          ? importedProject(shared, [])
+          : newProject(STARTER_NAME, STARTER_PROJECT);
+        setProjects([fallback]);
+        setCurrent(fallback);
         setPersistent(false);
       } finally {
         setReady(true);
@@ -145,20 +201,13 @@ export function useProjects(): ProjectsApi {
   const importFrom = useCallback(
     (exported: ExportedProject) => {
       void (async () => {
-        const build = (existing: StoredProject[]): StoredProject => ({
-          ...newProject(uniqueProjectName(exported.name, existing), exported.files),
-          // newProject opens everything; an export knows which tabs were open.
-          openNames: exported.openNames,
-          activeName: exported.activeName,
-        });
-
         try {
           const list = await listProjects();
-          const created = build(list);
+          const created = importedProject(exported, list);
           await saveProject(created);
           await openFrom([created, ...list], created.id);
         } catch {
-          const created = build([]);
+          const created = importedProject(exported, []);
           setProjects([created]);
           setCurrent(created);
           setPersistent(false);
@@ -205,11 +254,15 @@ export function useProjects(): ProjectsApi {
     [current?.id, openFrom, withFreshList],
   );
 
+  const dismissLinkError = useCallback(() => setLinkError(null), []);
+
   return {
     projects,
     current,
     ready,
     persistent,
+    linkError,
+    dismissLinkError,
     switchTo,
     create,
     importFrom,

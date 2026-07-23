@@ -13,6 +13,7 @@ import {
   serializeExport,
   toExport,
 } from "../project/transfer";
+import { buildShareUrl, SHARE_URL_SOFT_LIMIT } from "../project/shareLink";
 import { useAutosave } from "../project/useAutosave";
 import { useProject } from "../project/useProject";
 import type { ProjectsApi } from "../project/useProjects";
@@ -68,6 +69,9 @@ export function Workbench({
   const [executable, setExecutable] = useState<Uint8Array | null>(null);
   const [reveal, setReveal] = useState<Reveal | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [shareNotice, setShareNotice] = useState<{ text: string; transient: boolean } | null>(
+    null,
+  );
 
   const { files } = project;
 
@@ -122,6 +126,58 @@ export function Workbench({
     },
     [projects],
   );
+
+  /**
+   * A link that carries the whole project. Built from the live snapshot, for the
+   * same reason export is: `stored` is the copy this workbench mounted with, and
+   * autosave has been writing over it since. Copied to the clipboard on the spot;
+   * if the browser blocks that, the link itself goes in the notice so it is never
+   * simply lost. A link past the soft limit is still handed over, with a word
+   * that a file is the surer way to move a large project.
+   */
+  const share = useCallback(async () => {
+    try {
+      const url = await buildShareUrl(
+        toExport(stored.name, project.snapshot),
+        location.origin + location.pathname,
+      );
+
+      let copied = false;
+      try {
+        await navigator.clipboard.writeText(url);
+        copied = true;
+      } catch {
+        // Clipboard unavailable — not a secure context, or the user denied it.
+      }
+
+      const caveat =
+        url.length > SHARE_URL_SOFT_LIMIT
+          ? " It's a long link, so some chat apps may cut it off — for a project this size, an exported .13h.json file travels more reliably."
+          : "";
+
+      setShareNotice({
+        text: copied
+          ? `Link copied. Anyone who opens it gets their own copy of "${stored.name}".${caveat}`
+          : `Copy this link to share "${stored.name}":\n${url}${caveat}`,
+        // A confirmation can time out; a link the user still has to copy by hand
+        // must not vanish from under them.
+        transient: copied,
+      });
+    } catch (problem) {
+      setShareNotice({
+        text: problem instanceof Error ? problem.message : String(problem),
+        transient: false,
+      });
+    }
+  }, [stored.name, project.snapshot]);
+
+  // A copied-link confirmation clears itself; anything the user still has to act
+  // on stays until dismissed.
+  useEffect(() => {
+    if (!shareNotice?.transient) return;
+    const id = setTimeout(() => setShareNotice(null), 8000);
+    return () => clearTimeout(id);
+  }, [shareNotice]);
 
   /** Opening the file first; the editor reveals the line once it is showing. */
   const goTo = useCallback(
@@ -215,6 +271,7 @@ export function Workbench({
               serializeExport(toExport(stored.name, project.snapshot)),
             )
           }
+          onShare={() => void share()}
         />
 
         <button
@@ -273,6 +330,27 @@ export function Workbench({
             title="Dismiss"
             onClick={() => setImportError(null)}
           >
+            ✕
+          </button>
+        </p>
+      )}
+
+      {/* A share link the page was opened from that would not read. Owned by
+          useProjects — it is set before this workbench exists — and dismissed
+          through it. */}
+      {projects.linkError && (
+        <p className="ide-alert" role="alert">
+          <span>{projects.linkError}</span>
+          <button className="icon-btn" title="Dismiss" onClick={projects.dismissLinkError}>
+            ✕
+          </button>
+        </p>
+      )}
+
+      {shareNotice && (
+        <p className="ide-alert is-info" role="status">
+          <span className="ide-alert-text">{shareNotice.text}</span>
+          <button className="icon-btn" title="Dismiss" onClick={() => setShareNotice(null)}>
             ✕
           </button>
         </p>

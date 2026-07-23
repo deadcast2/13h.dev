@@ -22,6 +22,8 @@ interface Props {
   onDelete: (id: string) => void;
   /** Builds the file from the live project, which only the workbench has. */
   onExport: () => void;
+  /** Encodes the live project into a link and copies it, again from the workbench. */
+  onShare: () => void;
   /**
    * Reading and checking the file is the workbench's, because that is where a
    * rejection can be shown at full width. This only picks it.
@@ -81,6 +83,7 @@ export function ProjectMenu({
   onRename,
   onDelete,
   onExport,
+  onShare,
   onImportFile,
 }: Props) {
   const [editing, setEditing] = useState<"new" | "rename" | null>(null);
@@ -160,6 +163,13 @@ export function ProjectMenu({
         onClick={onExport}
       >
         ↓
+      </button>
+      <button
+        className="icon-btn"
+        title={`Copy a link that opens a copy of "${current?.name}"`}
+        onClick={onShare}
+      >
+        ↗
       </button>
       <button
         className="icon-btn"

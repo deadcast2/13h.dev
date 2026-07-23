@@ -39,6 +39,21 @@ export function App() {
   if (toolchain === null) {
     return (
       <main className="setup">
+        {/* A recipient can open a share link before they have a compiler; if the
+            link was damaged, the reason belongs here, where they first land. */}
+        {projects.linkError && (
+          <p className="ide-alert" role="alert">
+            <span>{projects.linkError}</span>
+            <button
+              className="icon-btn"
+              title="Dismiss"
+              onClick={projects.dismissLinkError}
+            >
+              ✕
+            </button>
+          </p>
+        )}
+
         <h1 className="brand brand-large">
           13h<span className="brand-dim">.dev</span>
         </h1>
