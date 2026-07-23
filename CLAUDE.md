@@ -6,23 +6,25 @@ what bites.
 
 ## State
 
-Steps 0–6 of 8 are done and committed. It is a working IDE that remembers your
-work and lets you take it with you: supply install disks, edit a multi-file
-project in Monaco, press Ctrl+B, watch it run, come back to it tomorrow, and
-export it to a file when you want it in another browser.
-
-**All eight steps are done.** What follows is maintenance and whatever the next
-idea turns out to be.
+**All eight steps are done and committed.** Supply install disks, edit a
+multi-file project in Monaco, press Ctrl+B, watch it run, see the compiler's
+errors marked on the lines that caused them, come back to it tomorrow, and
+export the whole thing to a file when you want it in another browser. What
+follows is maintenance and whatever the next idea turns out to be.
 
 Diagnostics land as Monaco markers and as a clickable list beside the log.
-`BuildResult` now carries `diagnostics` alongside `hint` and `log`: the log is
-TCC's own words, `hint` explains a failure the compiler reports accurately but
+`BuildResult` carries `diagnostics` alongside `hint` and `log`: the log is TCC's
+own words, `hint` explains a failure the compiler reports accurately but
 obscurely, and `diagnostics` is our reading of where each one points. All three
 sit beside each other rather than competing.
 
-Assembly works end to end as of the last session, given a TASM. That is the most
-recently exercised path and the least covered by anything written down, so treat
-it as the thing most likely to break unnoticed.
+Least-covered paths, in the order they are most likely to break unnoticed:
+assembly end to end (needs a TASM, exercised twice, no automated coverage);
+Turbo C++ 3.0, which has not been run since step 3; and `Workbench`'s build
+re-entrancy ref, which is the one trap the suite deliberately does not reach.
+
+A debugger is the obvious next feature and has been scouted but not started —
+see **Turbo Debugger** below for what was measured.
 
 ## Commands
 
@@ -356,6 +358,55 @@ naming. Differences that matter:
   spread across different disks, so they must be matched by name across the whole
   tree, not per directory.
 
+## Turbo Debugger
+
+Scouted, measured, not started. Everything below was verified in the running app
+rather than reasoned about, so it can be trusted as a starting point.
+
+**`TD.EXE` is already on the TASM 5.0 disks.** 773,468 bytes, in `TDDOS.PAK` on
+disk 2, together with `TDHELP.TDH` (158 KB, and F1 does nothing without it),
+`TDINST.EXE` and `TDREMOTE.EXE`. `classify()` throws both away today — `TD.EXE`
+is not in `WANTED_PROGRAMS` and `.TDH` matches no extension rule. `TD32.PAK` is
+the 32-bit debugger and `TDCMD.PAK` the Windows one; neither is any use against
+TCC's 16-bit real-mode output.
+
+**It is a DPMI/VCPI application, and it runs anyway.** `TD.EXE` is an `MZ` whose
+`e_lfanew` points at an `NE` header, and its DOS stub is Borland's `16STUB`,
+which fails with `memory manager does not support DPMI or VCPI` — the same
+family as Turbo C++ 3.0's compiler above. Under DOSBox it needs no configuration
+change: booted through the real `runProgram`, it came up in 640x400 text mode
+showing its blue TUI (104k pixels of `0,0,170`, white text, grey menu bar, eight
+colours). Note that `runner.ts`'s `DOSBOX_CONF` has no `[dos]` section at all and
+is relying on DOSBox's defaults for EMS; if a debugger ships, make that explicit
+the way the build config already does.
+
+**The keyboard already carries it.** Every F1–F12 and both Alt keys are in
+`keyCodes.ts`, and `handleKeyDown` already calls `preventDefault()` on anything
+it maps. Checked against the real debugger: F10 opened the menu, F1 opened help,
+F2 set a breakpoint, F9 ran, Alt+F opened the File menu, Escape backed out of
+each, and every event reported `defaultPrevented`.
+
+**`runner.ts` needed no changes to do any of that**, because `RunnerOptions`
+already takes `assets`. What a real feature would need is small: two filenames in
+`classify()`, `-v` in `TURBOC.CFG`, a way to separate the command to run from the
+file to write so the autoexec line can be `TD MAIN.EXE` rather than just the
+executable's name, and a button.
+
+**What is still unknown**, roughly in order of how likely it is to matter:
+
+- **Screen contention.** TD was tested standing alone, never over a mode 13h
+  program. Debugger and program share one screen, and that is the real ergonomic
+  question — the reason a plain program-output pane may be the better feature.
+- **Source-level debugging** needs `-v` debug info and the `.C` files on the
+  emulated disk. Neither was tried.
+- **Physical keypresses.** Synthetic events exercise everything from the app's
+  own listener onward, which is the part worth testing, but not whether a real
+  F-key reaches the page. F11/F12 cannot be suppressed in Chrome; TD does not use
+  them, so this is low risk rather than no risk.
+- **Ctrl+B still starts a build while the preview has focus.** The canvas handler
+  does not `stopPropagation`, so the window listener fires too. Pre-existing, and
+  more likely to bite during a debugging session than during a game.
+
 ## Verification
 
 **Two kinds, and they do not substitute for each other.** `npm test` owns the
@@ -415,6 +466,25 @@ Feeding the real UI instead means building a `DataTransfer`, assigning it to the
 dialog's hidden `input.files`, and dispatching a bubbling `change` — which is
 what actually exercises React's handler. Both were used to verify the assembler
 addition; neither needs the disks re-supplied by hand.
+
+**To find out what is actually on a disk, drive 7-Zip directly.** `classify()`
+discards most of what it unpacks, so the cache is no guide to what was supplied.
+`loadSevenZip()` gives the real thing, and its `fs` is an ordinary Emscripten
+filesystem, so containers can be peeled one at a time and the result read back
+into a `Uint8Array` — which is exactly the shape `runProgram` takes:
+
+```js
+const { loadSevenZip } = await import("/src/toolchain/sevenZip.ts");
+const sz = await loadSevenZip();
+sz.fs.writeFile("/in.7z", new Uint8Array(await (await fetch("/…7z")).arrayBuffer()));
+sz.run(["x", "/in.7z", "-o/a", "-y"]);          // → disk0N.img
+sz.run(["x", "/a/…/disk02.img", "-o/b", "-y"]); // → *.PAK
+sz.run(["x", "/b/TDDOS.PAK", "-o/c", "-y"]);    // → TD.EXE
+```
+
+That is how Turbo Debugger was found and booted without adding a byte to the
+repo. A host 7-Zip (`C:\Program Files\7-Zip\7z.exe`) answers the same question
+faster when only the file listing is wanted.
 
 The same `DataTransfer` trick drives import, against
 `.project-menu input[type=file]`. Export goes the other way: wrap
