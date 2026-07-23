@@ -155,24 +155,33 @@ describe("rename", () => {
 
 describe("delete", () => {
   it("opens another project when the open one goes", async () => {
-    await saveProject({ ...newProject("Other", []), lastOpenedAt: 1 });
+    // Two projects, so deleting the open one leaves a different one to fall
+    // back to. The newer opens on load; the older is what should surface after.
+    await saveProject({ ...newProject("Kept", []), lastOpenedAt: 1 });
+    await saveProject({ ...newProject("Open", []), lastOpenedAt: 2 });
     const hook = await ready(open());
-    const openId = hook.result.current.current!.id;
+    expect(hook.result.current.current?.name).toBe("Open");
 
-    hook.result.current.remove(openId);
+    hook.result.current.remove(hook.result.current.current!.id);
 
-    await waitFor(() => expect(hook.result.current.projects).toHaveLength(1));
-    expect(hook.result.current.current?.name).toBe("Other");
+    // Waiting on the name genuinely waits for `remove` to finish reopening: the
+    // fallback name differs from what was open, so this can't pass on the stale
+    // pre-delete state the way a project count of one — true throughout — would.
+    await waitFor(() => expect(hook.result.current.current?.name).toBe("Kept"));
+    expect(hook.result.current.projects).toHaveLength(1);
   });
 
   it("leaves a fresh starter rather than an empty application", async () => {
     const hook = await ready(open());
+    const goneId = hook.result.current.current!.id;
 
-    hook.result.current.remove(hook.result.current.current!.id);
+    hook.result.current.remove(goneId);
 
-    await waitFor(() =>
-      expect(hook.result.current.current?.name).toBe("Mode 13h starter"),
-    );
+    // The replacement is also called "Mode 13h starter", so the name is the same
+    // before and after and cannot tell the delete apart from its own starting
+    // state. The id turning over is the signal that the fresh one is now current.
+    await waitFor(() => expect(hook.result.current.current?.id).not.toBe(goneId));
+    expect(hook.result.current.current?.name).toBe("Mode 13h starter");
     expect(await listProjects()).toHaveLength(1);
   });
 });
