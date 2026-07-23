@@ -523,6 +523,17 @@ kbd {
   font-size: 0.8rem;
 }
 
+.build-hint {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: #1d1a12;
+  color: var(--vga-yellow);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  flex: none;
+}
+
 .build-log {
   margin: 0;
   padding: 0.75rem;

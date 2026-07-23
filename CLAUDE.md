@@ -41,6 +41,7 @@ browser and reading pixels back off the canvas.
 | `src/ide/FileTree.tsx` | File list, create/rename/delete, where 8.3 is enforced. |
 | `src/ide/EditorTabs.tsx` | The open set. Closing a tab is not deleting a file. |
 | `src/editor/monaco.ts` | Monaco entry points, VGA-palette theme, worker wiring. |
+| `src/editor/asmLanguage.ts` | Monarch grammar for TASM/MASM; Monaco ships none. |
 | `src/editor/CodeEditor.tsx` | One model per file, keyed by id; view state per tab. |
 | `src/ide/ProjectMenu.tsx` | Switch, create, rename, delete projects. |
 | `src/project/useProject.ts` | Live state: files, open tabs, active file. |
@@ -113,10 +114,19 @@ command and throws with a real explanation. COMMAND.COM truncates silently past
 sitting right there in the project. If this ever needs lifting, the way is
 separate `-c` compile passes and an explicit `TLINK`, not a longer line.
 
-**Only `.C`/`.CPP` go on the command line; headers only go on the disk.** Naming
-a header as a translation unit makes TCC compile it standalone and hand the
-linker an object file full of nothing. Both still have to be written to `SRC`, or
-`#include "VGA.H"` cannot resolve.
+**`.C`, `.CPP` and `.ASM` go on the command line; `.H` and `.INC` only go on the
+disk.** Naming a header as a translation unit makes TCC compile it standalone and
+hand the linker an object file full of nothing. All of them still have to be
+written to `SRC`, or `#include "VGA.H"` cannot resolve.
+
+**A silently ignored file is worse than a rejected one.** `.ASM` used to pass
+name validation, appear in the tree, get written to the build directory, and
+then never reach the compiler — the EXE came out byte-identical to a build
+without it. Anything the project accepts must either be built or visibly
+accounted for. `BuildResult.hint` is the channel for the second case: an
+explanation shown beside the log, never spliced into it, because the log is
+TCC's own words. Step 7's diagnostics should sit alongside it rather than
+rewrite it.
 
 **One module owns the IndexedDB version.** The toolchain and the projects share
 the `13h.dev` database. Two modules each calling `indexedDB.open` at a version of
@@ -170,6 +180,10 @@ naming. Differences that matter:
 - **1.01 cannot assemble inline `asm`.** It emits `.ASM` and shells out to TASM,
   which is on none of the disks. Workaround: pseudo-registers (`_AX`, `_AH`, …)
   with `geninterrupt()`, or `int86()` — compiler intrinsics needing no assembler.
+  A standalone `.ASM` file goes to TASM on *both* versions: 3.0's built-in
+  assembler handles inline `asm` only. Confirmed on 1.01 — `TCC ... CLEAR.ASM`
+  gets as far as `clear.asm:` and then `Error: Unable to execute command
+  'tasm.exe'`, the same message inline `asm` produces.
 - **3.0 has a built-in assembler**, so inline `asm` just works. Prefer it.
 - **3.0's compiler is a DPMI application.** It needs the DPMI runtime from
   `BIN.ZIP` (`DPMI16BI.OVL`, `DPMILOAD.EXE`, …) and XMS enabled, or it fails with
@@ -203,6 +217,16 @@ quickest way to compile arbitrary source without touching the UI.
 Typing text into Monaco does work — it goes in as an input event. For the rest,
 dispatch a properly-formed `KeyboardEvent` from the console; that still exercises
 everything from the app's own listener onward, which is the part worth testing.
+
+Two more things about driving it that way. `javascript_tool` gives up after 30
+seconds, so a script that waits on more than one build has to be split across
+calls. And when the browser pane is not being displayed the page stops
+compositing: Monaco renders nothing and `innerText` comes back empty, which
+looks exactly like a broken editor. `import("/src/editor/monaco.ts")` from the
+console returns the module instance the app is using, so
+`monaco.editor.getModels()` reads and writes the real documents regardless —
+and going through a model exercises the whole chain from `onDidChangeContent`
+through React state to autosave.
 
 ## Conventions
 

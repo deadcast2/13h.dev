@@ -41,10 +41,16 @@ export function splitDosName(name: string): { stem: string; ext: string } {
     : { stem: name.slice(0, dot), ext: name.slice(dot + 1) };
 }
 
+/**
+ * `source` means "TCC is given this on the command line". .ASM qualifies: TCC
+ * recognises it and shells out to TASM, so an assembly file is a translation
+ * unit in exactly the way a .C file is — it just needs an assembler present.
+ * .INC is assembly's header, included by name and never compiled alone.
+ */
 export function fileKind(name: string): FileKind {
   const ext = splitDosName(normalizeDosName(name)).ext;
-  if (ext === "C" || ext === "CPP") return "source";
-  if (ext === "H" || ext === "HPP") return "header";
+  if (ext === "C" || ext === "CPP" || ext === "ASM") return "source";
+  if (ext === "H" || ext === "HPP" || ext === "INC") return "header";
   return "other";
 }
 

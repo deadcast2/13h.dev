@@ -12,7 +12,11 @@ import "monaco-editor/esm/vs/basic-languages/cpp/cpp.contribution";
 // SharedArrayBuffer's sake, and COEP: require-corp blocks third-party scripts.
 import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 
+import { ASM_LANGUAGE_ID, registerAsmLanguage } from "./asmLanguage";
+
 self.MonacoEnvironment = { getWorker: () => new EditorWorker() };
+
+registerAsmLanguage();
 
 export const THEME = "13h";
 
@@ -32,9 +36,14 @@ monaco.editor.defineTheme(THEME, {
     { token: "keyword.directive.control", foreground: "ff5555" },
     { token: "number", foreground: "55ff55" },
     { token: "number.hex", foreground: "55ff55" },
+    { token: "number.binary", foreground: "55ff55" },
     { token: "string", foreground: "ffff55" },
     { token: "identifier", foreground: "d6dae0" },
     { token: "type", foreground: "55ffff" },
+    // Assembly: registers stand out from everything else on the line, and a
+    // label is the one thing you scan a listing for.
+    { token: "variable.predefined", foreground: "ff55ff" },
+    { token: "type.identifier", foreground: "ffffff" },
   ],
   colors: {
     "editor.background": "#14171c",
@@ -84,6 +93,7 @@ export const EDITOR_OPTIONS: monaco.editor.IStandaloneEditorConstructionOptions 
 
 /** Turbo C++ compiles .CPP as C++ and everything else as C; so does the editor. */
 export function languageFor(name: string): string {
+  if (/\.(asm|inc)$/i.test(name)) return ASM_LANGUAGE_ID;
   return /\.(cpp|hpp)$/i.test(name) ? "cpp" : "c";
 }
 

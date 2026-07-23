@@ -59,10 +59,31 @@ export interface BuildResult {
   ok: boolean;
   /** Raw TCC output — compiler banner, warnings and errors. */
   log: string;
+  /**
+   * An explanation for a failure the compiler reports accurately but obscurely.
+   * Kept beside the log rather than spliced into it: the log is TCC's own words
+   * and stays that way.
+   */
+  hint: string | null;
   /** The linked DOS executable, or null if the build failed. */
   executable: Uint8Array | null;
   durationMs: number;
 }
+
+/**
+ * TCC's complaint when it needs to assemble and cannot. It reaches for TASM both
+ * for a .ASM file named on the command line and — on 1.01, which has no built-in
+ * assembler — for any inline `asm` block. The message names a program the user
+ * never mentioned and gives no clue that it was never theirs to have.
+ */
+const ASSEMBLER_MISSING = /Unable to execute command 'tasm\.exe'/i;
+
+const NO_ASSEMBLER_HINT =
+  "This build needs an assembler and none is installed. TASM.EXE was sold " +
+  "separately as Turbo Assembler, so it is on none of the Turbo C++ disks — " +
+  "supply a copy alongside them and it will be picked up automatically. " +
+  "Failing that, Turbo C++ 3.0 assembles inline `asm` blocks itself; 1.01 " +
+  "cannot, and wants pseudo-registers with geninterrupt(), or int86().";
 
 const SRC_DIR = "SRC";
 const OUTPUT_EXE = "MAIN.EXE";
@@ -75,7 +96,7 @@ const DONE_FILE = "DONE.FLG";
  * makes TCC compile it standalone and then hand the linker an object file full
  * of nothing.
  */
-const TRANSLATION_UNIT = /\.(c|cpp)$/i;
+const TRANSLATION_UNIT = /\.(c|cpp|asm)$/i;
 
 /**
  * COMMAND.COM parses at most 127 characters, and truncates silently past that —
@@ -281,6 +302,7 @@ export async function compile(
           "Build timed out — the compiler never finished.\n\n" +
           "DOS console:\n" +
           stripAnsi(consoleOut.join("")),
+        hint: null,
         executable: null,
         durationMs: performance.now() - startedAt,
       };
@@ -289,13 +311,16 @@ export async function compile(
     const logBytes = await readIfPresent(ci, files, `${SRC_DIR}/${LOG_FILE}`);
     const exeBytes = await readIfPresent(ci, files, `${SRC_DIR}/${OUTPUT_EXE}`);
 
+    const log = logBytes
+      ? decodeDos(logBytes)
+      : `(no compiler output)\n\nDOS console:\n${stripAnsi(consoleOut.join(""))}`;
+
     return {
       // The executable's existence is the ground truth for success. Parsing the
       // log for the word "Error" would be guessing at TCC's phrasing.
       ok: exeBytes !== null,
-      log: logBytes
-        ? decodeDos(logBytes)
-        : `(no compiler output)\n\nDOS console:\n${stripAnsi(consoleOut.join(""))}`,
+      log,
+      hint: ASSEMBLER_MISSING.test(log) ? NO_ASSEMBLER_HINT : null,
       executable: exeBytes,
       durationMs: performance.now() - startedAt,
     };

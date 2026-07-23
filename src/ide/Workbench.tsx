@@ -202,6 +202,7 @@ export function Workbench({
           </div>
 
           <header className="pane-header">Build output</header>
+          {result?.hint && <p className="build-hint">{result.hint}</p>}
           <pre className="build-log">
             {error ??
               result?.log ??

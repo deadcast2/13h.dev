@@ -170,9 +170,11 @@ export function FileTree({ files, activeId, onOpen, onCreate, onRename, onDelete
       </ul>
 
       <p className="tree-hint">
-        8.3 names only — up to eight characters, a dot, then up to three. Headers
-        are written to the build directory but only <code>.C</code> and{" "}
-        <code>.CPP</code> are compiled.
+        8.3 names only — up to eight characters, a dot, then up to three.{" "}
+        <code>.C</code>, <code>.CPP</code> and <code>.ASM</code> are compiled;{" "}
+        <code>.H</code> and <code>.INC</code> are written to the build directory
+        to be included, not built. Assembly needs a <code>TASM.EXE</code>{" "}
+        supplied with your disks.
       </p>
     </div>
   );

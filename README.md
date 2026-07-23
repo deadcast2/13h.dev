@@ -44,8 +44,26 @@ Error: Unable to execute command 'tasm.exe'
 references to C variables. If you're following a book that drops into assembly for
 speed, that difference matters. On 1.01 the way around it is pseudo-registers
 (`_AX`, `_AH`, …) with `geninterrupt()`, or `int86()` — all compiler intrinsics
-that need no assembler. Either version also picks up a `TASM.EXE` if you supply
-one alongside the disks.
+that need no assembler.
+
+### Assembly files
+
+`.ASM` files are part of the build: TCC recognises them and hands them to TASM,
+exactly as it does for a `.C` file it needs to assemble. `.INC` travels with them
+without being assembled on its own, the way `.H` does for C.
+
+That needs a `TASM.EXE`, and this is the one thing the built-in assembler does
+*not* cover — 3.0 assembles inline `asm` itself, but a standalone `.ASM` file
+goes to TASM on both versions. Turbo Assembler was sold as a separate product, so
+it is on none of the Turbo C++ disks; supply a copy alongside them and it is
+picked up automatically. Without one, a build that needs to assemble stops with
+
+```
+Error: Unable to execute command 'tasm.exe'
+```
+
+which the build panel explains rather than leaving you to work out whose program
+`tasm.exe` was supposed to be.
 
 Both are supported and verified end to end; the build flags, `TURBOC.CFG` and
 `C0x.OBJ`/`Cx.LIB` naming are identical between them.
@@ -103,9 +121,9 @@ character FAT doesn't allow, or a reserved device name like `CON`. Everything is
 uppercased on the way in, because that is what the disk stores.
 
 A build writes every file in the project to the compiler's working directory but
-names only `.C` and `.CPP` on the command line: headers travel with the sources
-so `#include "VGA.H"` resolves, without being compiled as translation units in
-their own right. That command line is subject to DOS's 127-character limit, which
+names only `.C`, `.CPP` and `.ASM` on the command line: `.H` and `.INC` travel
+with the sources so `#include "VGA.H"` resolves, without being compiled as
+translation units in their own right. That command line is subject to DOS's 127-character limit, which
 is checked before the build rather than discovered as a link error afterwards.
 
 ## Development
