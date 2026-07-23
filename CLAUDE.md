@@ -11,13 +11,13 @@ work and lets you take it with you: supply install disks, edit a multi-file
 project in Monaco, press Ctrl+B, watch it run, come back to it tomorrow, and
 export it to a file when you want it in another browser.
 
-**Next: step 7, compiler diagnostics inline.** Then 8, polish.
+**Next: step 8, polish.**
 
-The build log already carries what step 7 needs — TCC emits
-`Error main.c 7: Undefined symbol 'this' in function main`, so file and line are
-right there to be parsed into Monaco markers. `BuildResult.hint` is the place for
-anything that explains a failure rather than locating it; the two should sit
-beside each other rather than compete.
+Diagnostics land as Monaco markers and as a clickable list beside the log.
+`BuildResult` now carries `diagnostics` alongside `hint` and `log`: the log is
+TCC's own words, `hint` explains a failure the compiler reports accurately but
+obscurely, and `diagnostics` is our reading of where each one points. All three
+sit beside each other rather than competing.
 
 Assembly works end to end as of the last session, given a TASM. That is the most
 recently exercised path and the least covered by anything written down, so treat
@@ -33,11 +33,12 @@ npm run test:watch
 npm run build
 ```
 
-**The suite covers pure logic, storage, and the concurrency traps.** 139 tests:
+**The suite covers pure logic, storage, and the concurrency traps.** 169 tests:
 
 | File | What it holds down |
 | --- | --- |
 | `build/commandLine.test.ts` | Which files reach TCC; the 127-character limit, from both sides. |
+| `build/diagnostics.test.ts` | Three tools' message formats, against real captured logs. |
 | `project/dosNames.test.ts` | Every 8.3 rejection, device names, sort order. |
 | `project/transfer.test.ts` | Export round trip; every case an import refuses. |
 | `project/store.test.ts` | The two-writer merge, against real IndexedDB semantics. |
@@ -83,6 +84,8 @@ for it would be mostly scaffolding.
 | `src/toolchain/store.ts` | IndexedDB cache of the unpacked toolchain. |
 | `src/toolchain/SetupPane.tsx` | First-run drop zone. |
 | `src/build/commandLine.ts` | What TCC is told to build. Pure, and therefore tested. |
+| `src/build/diagnostics.ts` | Reads errors out of the build log. Three formats, one shape. |
+| `src/ide/DiagnosticList.tsx` | The clickable list; the way back to a file you aren't in. |
 | `src/build/turboc.ts` | Runs `TCC.EXE` in a headless DOSBox, reads back log + `.EXE`. |
 | `src/run/runner.ts` | Runs the built `.EXE` in a visible DOSBox, paints to canvas. |
 | `src/dos/emulatorLock.ts` | Serialises all emulator create/destroy. |
@@ -188,6 +191,39 @@ accounted for. `BuildResult.hint` is the channel for the second case: an
 explanation shown beside the log, never spliced into it, because the log is
 TCC's own words. Step 7's diagnostics should sit alongside it rather than
 rewrite it.
+
+**TLINK writes the executable and *then* reports undefined symbols.** So a
+program calling a function that does not exist produces a MAIN.EXE — measured at
+exactly 4,937 bytes, the same as the working version of the same program — and
+the build used to report success and run it. "The executable exists" was the
+whole test for a working build, on the reasoning that reading the log would mean
+guessing at TCC's phrasing. That reasoning was sound until there was a parser
+for the log; `ok` is now `exe exists && no error diagnostics`, and `executable`
+is withheld when it is false, because what a failed link leaves behind is debris
+rather than a program. Compile errors were never affected — those produce no EXE
+at all — which is why this went unnoticed.
+
+**Three tools write to the build log and none of them agree on a format.**
+`Error main.c 5: msg` from TCC, `Error: msg` with no line from TLINK, and
+`**Error** clear.ASM(2) msg` from TASM. TASM's summary lines (`Error messages:
+4`) begin with a severity word and are not diagnostics; the assembler pattern is
+tested first partly to keep them out. Everything in `diagnostics.test.ts` is a
+real log captured from a real failing build, because all three formats were
+discovered by reading actual output — a fixture written from memory would test
+the parser against the same guess that produced it.
+
+**The compiler lower-cases the filenames it echoes and the assembler does not.**
+A project holding `MAIN.C` and `CLEAR.ASM` is told about `main.c` and
+`clear.ASM` in the same build, and an error inside an included header names the
+header as given — `Error VGA.H 3: ) expected`. Matching a diagnostic to a
+project file is therefore always case-insensitive; that is what `locate()` is
+for. Comparing exactly puts markers on nothing at all.
+
+**A reported line can be past the end of the file.** TASM's "Unexpected end of
+file encountered" lands one line beyond the last, so a 5-line file gets a
+diagnostic at line 6. Monaco is given a clamped line; the list still displays
+what the tool said. The list reports the tool, the marker points somewhere that
+exists, and neither lies about the other.
 
 **One module owns the IndexedDB version.** The toolchain and the projects share
 the `13h.dev` database. Two modules each calling `indexedDB.open` at a version of

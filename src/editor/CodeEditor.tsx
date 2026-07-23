@@ -16,15 +16,57 @@ import { EDITOR_OPTIONS, languageFor, monaco } from "./monaco";
  * language services, and a URI would only have to be recreated on every rename.
  */
 
+/** A diagnostic already matched to a file the editor holds a model for. */
+export interface EditorMarker {
+  fileId: string;
+  line: number;
+  severity: "error" | "warning";
+  message: string;
+}
+
+/**
+ * A place to jump to. `token` is what makes clicking the same diagnostic twice
+ * scroll back to it: without it the value would be unchanged and the effect
+ * would not run.
+ */
+export interface Reveal {
+  fileId: string;
+  line: number;
+  token: number;
+}
+
+/** Namespaces our markers, so setting them never disturbs anyone else's. */
+const MARKER_OWNER = "tcc";
+
 interface Props {
   files: ProjectFile[];
   activeId: string | null;
   onChange: (id: string, text: string) => void;
   /** Ctrl/Cmd+B from inside the editor, where the document has the keyboard. */
   onBuild: () => void;
+  /** From the last build. Empty while one is running, and before the first. */
+  markers: EditorMarker[];
+  reveal: Reveal | null;
 }
 
-export function CodeEditor({ files, activeId, onChange, onBuild }: Props) {
+/**
+ * A line number from a DOS tool, made safe to point at.
+ *
+ * TASM's "Unexpected end of file encountered" is reported one line past the end
+ * of the file, and a stale marker can outlive the lines it referred to, so this
+ * is a clamp rather than an assertion.
+ */
+const clampToModel = (line: number, model: monaco.editor.ITextModel) =>
+  Math.min(Math.max(Math.trunc(line), 1), model.getLineCount());
+
+export function CodeEditor({
+  files,
+  activeId,
+  onChange,
+  onBuild,
+  markers,
+  reveal,
+}: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const modelsRef = useRef(new Map<string, monaco.editor.ITextModel>());
@@ -114,6 +156,55 @@ export function CodeEditor({ files, activeId, onChange, onBuild }: Props) {
       shownRef.current = activeId;
     }
   }, [files, activeId]);
+
+  // After the effect above, so a model created by this render already exists.
+  // Every model is set, including to nothing: that is what clears the previous
+  // build's markers from a file this one had no complaint about.
+  useEffect(() => {
+    const models = modelsRef.current;
+    const byFile = new Map<string, monaco.editor.IMarkerData[]>();
+
+    for (const marker of markers) {
+      const model = models.get(marker.fileId);
+      if (!model) continue;
+
+      const line = clampToModel(marker.line, model);
+      const list = byFile.get(marker.fileId) ?? [];
+      list.push({
+        severity:
+          marker.severity === "error"
+            ? monaco.MarkerSeverity.Error
+            : monaco.MarkerSeverity.Warning,
+        message: marker.message,
+        startLineNumber: line,
+        endLineNumber: line,
+        // Borland's tools report a line and no column, so the whole line is
+        // underlined rather than a guessed-at span of it.
+        startColumn: 1,
+        endColumn: model.getLineMaxColumn(line),
+      });
+      byFile.set(marker.fileId, list);
+    }
+
+    for (const [id, model] of models) {
+      monaco.editor.setModelMarkers(model, MARKER_OWNER, byFile.get(id) ?? []);
+    }
+  }, [markers, files]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || !reveal) return;
+
+    const model = modelsRef.current.get(reveal.fileId);
+    // The model-switching effect above runs first, so by now the right file is
+    // showing — unless the click was for a file that has since gone.
+    if (!model || editor.getModel() !== model) return;
+
+    const line = clampToModel(reveal.line, model);
+    editor.setPosition({ lineNumber: line, column: 1 });
+    editor.revealLineInCenter(line);
+    editor.focus();
+  }, [reveal]);
 
   return (
     <div className="editor-host">

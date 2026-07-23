@@ -4,6 +4,7 @@ import { emulatorLock } from "../dos/emulatorLock";
 import { loadEmulators } from "../dos/emulators";
 import { copyForEmulator } from "../dos/initFs";
 import { loadToolchain } from "../toolchain/store";
+import { hasErrors, parseDiagnostics, type Diagnostic } from "./diagnostics";
 import {
   buildBat,
   DONE_FILE,
@@ -49,6 +50,15 @@ export interface BuildResult {
   ok: boolean;
   /** Raw TCC output — compiler banner, warnings and errors. */
   log: string;
+  /**
+   * The same failures, read out of the log so they can be pointed at a line.
+   * Beside the log rather than instead of it: this is our reading of what the
+   * compiler said, and the compiler's own words stay available next to it.
+   *
+   * Present on a successful build too — warnings are worth showing when nothing
+   * failed, and that is the only time anyone is likely to read them.
+   */
+  diagnostics: Diagnostic[];
   /**
    * An explanation for a failure the compiler reports accurately but obscurely.
    * Kept beside the log rather than spliced into it: the log is TCC's own words
@@ -228,6 +238,7 @@ export async function compile(
           "DOS console:\n" +
           stripAnsi(consoleOut.join("")),
         hint: null,
+        diagnostics: [],
         executable: null,
         durationMs: performance.now() - startedAt,
       };
@@ -240,13 +251,28 @@ export async function compile(
       ? decodeDos(logBytes)
       : `(no compiler output)\n\nDOS console:\n${stripAnsi(consoleOut.join(""))}`;
 
+    const diagnostics = parseDiagnostics(log);
+
+    /*
+     * Both conditions are needed, and the second was learned the hard way.
+     *
+     * The executable's existence used to be the whole test, on the reasoning
+     * that reading the log would mean guessing at TCC's phrasing. But TLINK
+     * writes MAIN.EXE before it reports undefined symbols: a program calling a
+     * function that does not exist links to a file the same size as a working
+     * one, and the build reported success and then ran it. Now that the log is
+     * parsed rather than pattern-matched, it is the better witness.
+     */
+    const ok = exeBytes !== null && !hasErrors(diagnostics);
+
     return {
-      // The executable's existence is the ground truth for success. Parsing the
-      // log for the word "Error" would be guessing at TCC's phrasing.
-      ok: exeBytes !== null,
+      ok,
       log,
       hint: ASSEMBLER_MISSING.test(log) ? NO_ASSEMBLER_HINT : null,
-      executable: exeBytes,
+      diagnostics,
+      // Withheld unless the build worked. What TLINK leaves behind after a
+      // failed link is debris, not something anyone should be able to run.
+      executable: ok ? exeBytes : null,
       durationMs: performance.now() - startedAt,
     };
   } finally {

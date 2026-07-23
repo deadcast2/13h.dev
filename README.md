@@ -114,6 +114,31 @@ C++ IDE itself (`TC.CA1`/`TC.CA2`) is skipped — `TCC.EXE` is driven directly. 
 what you supply doesn't contain a complete toolchain, setup says which pieces
 were missing rather than failing later at compile time.
 
+## Errors point at your code
+
+A failed build marks the lines that caused it. Errors and warnings from the
+build log become markers in the editor — in the gutter, under the line, with the
+compiler's message on hover — and a clickable list beside the log takes you to
+any of them, opening the file if it isn't already a tab. Which matters most in
+the case markers alone can't help with: the file that broke is usually not the
+one you were looking at.
+
+Three programs write to that log and none of them agree on a format. Turbo C++
+gives `Error main.c 5: Declaration syntax error`, TLINK gives `Error: Undefined
+symbol _nope in module main.c` with no line at all, and Turbo Assembler gives
+`**Error** clear.ASM(2) Code or data emission to undeclared segment`. All three
+are read. The compiler lower-cases the filenames it echoes, the assembler
+doesn't, and your files are upper-case 8.3 — so matching is case-insensitive, or
+it would match nothing.
+
+A linker error names the module a missing symbol was referenced from, but not
+where. It gets a row you can click to open that file and no marker, because
+putting a squiggle on line 1 would be inventing a location the toolchain never
+gave.
+
+The raw log stays underneath, unedited. It is the compiler's own words, and the
+list above it is only this program's reading of them.
+
 ## Your work stays put
 
 There is no Save button and no account. Projects are written to IndexedDB as you
@@ -243,7 +268,7 @@ Two things this does **not** reach:
 
 ## Status
 
-Step 6 of 8. Supply your disks, edit a multi-file project, press Ctrl+B, watch
-your pixels, find it all still there tomorrow, and carry it out as a file when
-you want it somewhere else. Still to come: compiler errors shown inline against
-the source rather than only in the build log.
+Step 7 of 8. Supply your disks, edit a multi-file project, press Ctrl+B, watch
+your pixels, find your errors marked on the lines that caused them, and carry
+the whole thing out as a file when you want it somewhere else. Still to come:
+polish.

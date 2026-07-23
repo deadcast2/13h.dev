@@ -627,6 +627,76 @@ kbd {
   flex: none;
 }
 
+/* ── Compiler diagnostics ────────────────────────────────────────────────── */
+
+.diagnostics {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex: none;
+  /* Capped rather than unbounded: five errors is common and the raw log below
+     must not be pushed off the pane by them. */
+  max-height: 11rem;
+  overflow-y: auto;
+  border-bottom: 1px solid var(--border);
+  background: #12151a;
+}
+
+.diagnostic {
+  border-left: 3px solid transparent;
+}
+
+.diagnostic.is-error {
+  border-left-color: var(--vga-light-red);
+}
+
+.diagnostic.is-warning {
+  border-left-color: var(--vga-yellow);
+}
+
+.diagnostic-row {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.3rem 0.6rem;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  text-align: left;
+  color: var(--text);
+}
+
+button.diagnostic-row {
+  cursor: pointer;
+}
+
+button.diagnostic-row:hover {
+  background: var(--border);
+}
+
+.diagnostic-where {
+  flex: none;
+  color: var(--vga-light-cyan);
+}
+
+.is-error .diagnostic-where {
+  color: var(--vga-light-red);
+}
+
+.is-warning .diagnostic-where {
+  color: var(--vga-yellow);
+}
+
+.diagnostic-message {
+  color: var(--text-dim);
+}
+
+.diagnostic-row.is-unplaced {
+  color: var(--text-dim);
+}
+
 .build-log {
   margin: 0;
   padding: 0.75rem;

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { locate } from "../build/diagnostics";
 import { compile, type BuildResult } from "../build/turboc";
-import { CodeEditor } from "../editor/CodeEditor";
+import { CodeEditor, type EditorMarker, type Reveal } from "../editor/CodeEditor";
 import type { StoredProject } from "../project/store";
 import { useAutosave } from "../project/useAutosave";
 import { useProject } from "../project/useProject";
@@ -16,6 +17,7 @@ import { PreviewPane } from "../run/PreviewPane";
 import { stopProgram } from "../run/runner";
 import { AddToolsDialog } from "../toolchain/AddToolsDialog";
 import type { StoredToolchain } from "../toolchain/store";
+import { DiagnosticList, diagnosticSummary } from "./DiagnosticList";
 import { EditorTabs } from "./EditorTabs";
 import { FileTree } from "./FileTree";
 import { ProjectMenu } from "./ProjectMenu";
@@ -59,8 +61,45 @@ export function Workbench({
   const [result, setResult] = useState<BuildResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [executable, setExecutable] = useState<Uint8Array | null>(null);
+  const [reveal, setReveal] = useState<Reveal | null>(null);
 
   const { files } = project;
+
+  /**
+   * Diagnostics matched to the files they belong to. The compiler names files
+   * as it echoed them — lower-cased, and the assembler differently again — so
+   * `locate` is what turns a name in a log into a file the editor holds.
+   *
+   * Only those with a line become markers. A linker error names the module a
+   * missing symbol was referenced from but not where, and putting a squiggle on
+   * line 1 would be inventing a location the toolchain never gave. Those stay in
+   * the list below the preview, where they can still be clicked to open the
+   * file.
+   */
+  const markers = useMemo<EditorMarker[]>(() => {
+    const diagnostics = result?.diagnostics ?? [];
+    return diagnostics.flatMap((diagnostic) => {
+      const file = locate(diagnostic, files);
+      if (!file || diagnostic.line === null) return [];
+      return [
+        {
+          fileId: file.id,
+          line: diagnostic.line,
+          severity: diagnostic.severity,
+          message: diagnostic.message,
+        },
+      ];
+    });
+  }, [result, files]);
+
+  /** Opening the file first; the editor reveals the line once it is showing. */
+  const goTo = useCallback(
+    (fileId: string, line: number) => {
+      project.open(fileId);
+      setReveal((previous) => ({ fileId, line, token: (previous?.token ?? 0) + 1 }));
+    },
+    [project],
+  );
 
   /**
    * Guards re-entry synchronously, which `phase` cannot: Ctrl+B pressed inside
@@ -165,6 +204,10 @@ export function Workbench({
             {result.executable &&
               !isDosExecutable(result.executable) &&
               " · NOT an MZ binary"}
+            {/* Warnings are worth saying out loud on a build that succeeded,
+                which is the only time anyone would otherwise skip the log. */}
+            {diagnosticSummary(result.diagnostics) &&
+              ` · ${diagnosticSummary(result.diagnostics)}`}
           </span>
         )}
       </header>
@@ -191,6 +234,8 @@ export function Workbench({
             activeId={project.activeId}
             onChange={project.setText}
             onBuild={() => void build()}
+            markers={markers}
+            reveal={reveal}
           />
         </section>
 
@@ -225,6 +270,11 @@ export function Workbench({
 
           <header className="pane-header">Build output</header>
           {result?.hint && <p className="build-hint">{result.hint}</p>}
+          <DiagnosticList
+            diagnostics={result?.diagnostics ?? []}
+            files={project.files}
+            onSelect={goTo}
+          />
           <pre className="build-log">
             {error ??
               result?.log ??
