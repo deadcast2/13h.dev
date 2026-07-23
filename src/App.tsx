@@ -71,7 +71,7 @@ export function App() {
         13h<span style={{ color: "var(--text-dim)" }}>.dev</span>
       </h1>
       <p style={{ color: "var(--text-dim)", marginTop: "0.25rem" }}>
-        Turbo C++ 1.01 · mode 13h · entirely in your browser
+        Turbo C++ · mode 13h · entirely in your browser
       </p>
 
       {toolchain === undefined && (

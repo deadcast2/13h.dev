@@ -6,7 +6,11 @@ import { copyForEmulator } from "../dos/initFs";
 import { loadToolchain } from "../toolchain/store";
 
 /**
- * Drives Turbo C++ 1.01's command-line compiler inside a headless DOSBox.
+ * Drives Turbo C++'s command-line compiler inside a headless DOSBox.
+ *
+ * Works with both 1.01 and 3.0. The flags, TURBOC.CFG and C0x.OBJ/Cx.LIB naming
+ * are unchanged between them; 3.0 differs only in needing extended memory, since
+ * its compiler runs in protected mode.
  *
  * A build boots a throwaway emulator seeded with the toolchain, the project
  * sources, and a generated batch file; DOSBox runs the batch file via [autoexec]
@@ -121,6 +125,13 @@ memsize=16
 core=auto
 cputype=auto
 cycles=max
+
+[dos]
+# Turbo C++ 3.0's compiler runs in protected mode via a DPMI server, which needs
+# extended memory. 1.01's is real-mode and indifferent to this.
+xms=true
+ems=true
+umb=true
 
 [autoexec]
 mount c .

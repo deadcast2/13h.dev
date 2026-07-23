@@ -22,10 +22,33 @@ resulting executable. Nothing about DOS is exposed to you.
 
 ## The compiler is not included
 
-13h.dev ships no Borland code. On first run you supply your own Turbo C++ 1.01
-install disks — the original `.7z` of floppy images, the `.img` files, or an
-already-installed `C:\TC` folder — and the app unpacks them in your browser and
+13h.dev ships no Borland code. On first run you supply your own **Turbo C++ 1.01
+or 3.0** install disks — the original `.7z` of floppy images, the `.img` files, or
+an already-installed `C:\TC` folder — and the app unpacks them in your browser and
 caches the result locally. They never leave your machine.
+
+### Which version?
+
+**3.0 if you have a choice**, for one reason: it has a built-in inline assembler.
+
+Turbo C++ 1.01 doesn't assemble `asm` blocks itself — it emits `.ASM` and shells
+out to TASM, which was a separate product and is on none of the disks. An `asm`
+block therefore fails with:
+
+```
+Warning main.c 5: Restarting compile using assembly in function set_mode_13h
+Error: Unable to execute command 'tasm.exe'
+```
+
+3.0 assembles inline `asm` directly, statement and block form both, including
+references to C variables. If you're following a book that drops into assembly for
+speed, that difference matters. On 1.01 the way around it is pseudo-registers
+(`_AX`, `_AH`, …) with `geninterrupt()`, or `int86()` — all compiler intrinsics
+that need no assembler. Either version also picks up a `TASM.EXE` if you supply
+one alongside the disks.
+
+Both are supported and verified end to end; the build flags, `TURBOC.CFG` and
+`C0x.OBJ`/`Cx.LIB` naming are identical between them.
 
 Getting there means peeling three nested containers, which is why this uses
 [7z-wasm](https://github.com/use-strict/7z-wasm) rather than a normal zip library:
@@ -34,6 +57,13 @@ Getting there means peeling three nested containers, which is why this uses
 2. **`Disk0N.img`** — raw FAT12 720K floppy images
 3. **`TCC.ZIP`, `INCLUDE.ZIP`, …** — PKZIP 1.x using the legacy **Implode** method,
    which `fflate`, `JSZip`, and friends cannot decode
+
+Turbo C++ 3.0 adds a fourth: `CMDLINE.CA1`/`.CA2`, Borland's own split archives,
+which is where 3.0 keeps the command-line compiler. They turn out to be a four-byte
+header followed by raw zip data cut across disks — strip the headers, concatenate
+in numeric order, and an ordinary zip falls out. Parts are matched by name across
+the whole disk set, because they are deliberately spread apart: on the 3.0 disks
+`CMDLINE.CA2` is on disk 1 and `CMDLINE.CA1` is on disk 3.
 
 Rather than branch on which of those shapes you supplied, containers are expanded
 repeatedly until none are left, and the resulting files are then sorted by what

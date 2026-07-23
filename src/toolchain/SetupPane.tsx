@@ -87,7 +87,7 @@ export function SetupPane({ onInstalled }: Props) {
       <div style={{ padding: "1rem" }}>
         <p style={{ marginTop: 0 }}>
           13h.dev doesn&apos;t ship a compiler. Supply your own copy of the{" "}
-          <strong>Turbo C++ 1.01</strong> install disks and it will be unpacked
+          <strong>Turbo C++ 1.01 or 3.0</strong> install disks and it will be unpacked
           here in your browser and kept on this machine.
         </p>
 
