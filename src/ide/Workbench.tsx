@@ -5,7 +5,9 @@ import { compile, type BuildResult } from "../build/turboc";
 import { CodeEditor, type EditorMarker, type Reveal } from "../editor/CodeEditor";
 import type { StoredProject } from "../project/store";
 import {
+  downloadBytes,
   downloadText,
+  exeFilename,
   exportFilename,
   parseExport,
   serializeExport,
@@ -233,6 +235,28 @@ export function Workbench({
             {result.executable &&
               !isDosExecutable(result.executable) &&
               " · NOT an MZ binary"}
+            {/* Offered from `result`, not the `executable` run-state, so it
+                outlives stopping the preview: what built is downloadable whether
+                or not it is still on screen. octet-stream because it is a raw
+                DOS binary the browser should save, never try to interpret. */}
+            {result.executable && (
+              <>
+                {" · "}
+                <button
+                  className="link-btn"
+                  title="Download the compiled MS-DOS executable"
+                  onClick={() =>
+                    downloadBytes(
+                      exeFilename(stored.name),
+                      result.executable!,
+                      "application/octet-stream",
+                    )
+                  }
+                >
+                  download .exe
+                </button>
+              </>
+            )}
             {/* Warnings are worth saying out loud on a build that succeeded,
                 which is the only time anyone would otherwise skip the log. */}
             {diagnosticSummary(result.diagnostics) &&

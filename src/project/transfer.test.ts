@@ -4,6 +4,7 @@ import { MAX_PROJECT_NAME } from "./store";
 import {
   EXPORT_FORMAT,
   EXPORT_VERSION,
+  exeFilename,
   exportFilename,
   parseExport,
   serializeExport,
@@ -116,6 +117,28 @@ describe("exportFilename", () => {
 
     // The cut lands exactly on the separator; it must not survive it.
     expect(exportFilename("a".repeat(40) + " tail")).toBe("a".repeat(40) + ".13h.json");
+  });
+});
+
+describe("exeFilename", () => {
+  it("uppercases and keeps only the characters DOS allows in a stem", () => {
+    expect(exeFilename("Mode 13h starter")).toBe("MODE13HS.EXE");
+    expect(exeFilename("snake")).toBe("SNAKE.EXE");
+  });
+
+  it("caps the stem at the eight characters DOS allows", () => {
+    expect(exeFilename("fireworks")).toBe("FIREWORK.EXE");
+  });
+
+  it("drops punctuation and spaces rather than mapping them to a separator", () => {
+    // Unlike the export slug, an 8.3 stem has no dash to fall back on.
+    expect(exeFilename("Chapter 4 -- fire!")).toBe("CHAPTER4.EXE");
+  });
+
+  it("falls back to a name that always builds when nothing usable is left", () => {
+    expect(exeFilename("!!!")).toBe("PROGRAM.EXE");
+    expect(exeFilename("")).toBe("PROGRAM.EXE");
+    expect(exeFilename("Über")).toBe("BER.EXE");
   });
 });
 

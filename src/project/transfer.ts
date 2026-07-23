@@ -74,14 +74,40 @@ export function exportFilename(projectName: string): string {
 }
 
 /**
+ * An 8.3, DOS-legal name for the compiled executable, derived from the project's
+ * own label so a download drops straight onto a real disk. The project name is
+ * the user's free-form label and subject to none of the 8.3 rules; this is, so
+ * it keeps only letters and digits, uppercases them, and takes the first eight —
+ * the same shape the emulated filesystem would accept. A name that reduces to
+ * nothing falls back to one that is always valid.
+ *
+ * Cosmetic only: the guest always links `MAIN.EXE`, and this renames the copy on
+ * the way out. It does not have to match anything the build produced.
+ */
+export function exeFilename(projectName: string): string {
+  const stem = projectName
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 8);
+  return `${stem || "PROGRAM"}.EXE`;
+}
+
+/**
  * Hands the browser a file to save.
  *
  * The anchor has to be in the document for Firefox to honour the click, and the
  * object URL has to outlive it — revoking in the same tick cancels the download
  * in Chrome, which is a fault that only shows up on a fast machine.
+ *
+ * The bytes are copied into a fresh buffer before the `Blob` takes them, so a
+ * download is non-destructive — unlike handing a buffer to an emulator, which
+ * transfers and detaches it. The same executable can be downloaded and still run
+ * afterward. The copy also sheds the `SharedArrayBuffer` backing js-dos hands
+ * back on a cross-origin-isolated page, which a `Blob` part cannot be.
  */
-export function downloadText(filename: string, text: string): void {
-  const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+export function downloadBytes(filename: string, data: string | Uint8Array, type: string): void {
+  const part = typeof data === "string" ? data : new Uint8Array(data);
+  const url = URL.createObjectURL(new Blob([part], { type }));
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = filename;
@@ -90,6 +116,10 @@ export function downloadText(filename: string, text: string): void {
   anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
+
+/** The JSON-export half of {@link downloadBytes}, kept for its one caller. */
+export const downloadText = (filename: string, text: string): void =>
+  downloadBytes(filename, text, "application/json");
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
