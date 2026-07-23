@@ -35,8 +35,16 @@ Getting there means peeling three nested containers, which is why this uses
 3. **`TCC.ZIP`, `INCLUDE.ZIP`, …** — PKZIP 1.x using the legacy **Implode** method,
    which `fflate`, `JSZip`, and friends cannot decode
 
-Assembled, the toolchain is ~81 files / 2.1 MB, cached at under 1 MB. The Turbo C++
-IDE itself (`TC.CA1`/`TC.CA2`) is skipped — `TCC.EXE` is driven directly.
+Rather than branch on which of those shapes you supplied, containers are expanded
+repeatedly until none are left, and the resulting files are then sorted by what
+each one *is* — compiler and linker to `BIN`, `.H` to `INCLUDE`, `.LIB`/`.OBJ` to
+`LIB`, `.BGI`/`.CHR` to `BGI`. An already-installed `C:\TC` folder therefore works
+as well as the raw disks.
+
+Assembled, the toolchain is ~80 files / 2 MB, cached at under 1 MB in IndexedDB.
+The Turbo C++ IDE itself (`TC.CA1`/`TC.CA2`) is skipped — `TCC.EXE` is driven
+directly. If what you supply doesn't contain a complete toolchain, setup says
+which pieces were missing rather than failing later at compile time.
 
 ## Filenames are 8.3
 
@@ -57,17 +65,8 @@ The dev server sets `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Poli
 so that `SharedArrayBuffer` is available — js-dos needs cross-origin isolation for
 its worker backend. **Any production host must send these headers too.**
 
-### Toolchain fixture (temporary)
-
-Until the in-browser unpacker lands, the pipeline is developed against a fixture
-generated from a local copy of the install disks. Requires 7-Zip on the host:
-
-```bash
-npm run toolchain:fixture -- "Borland Turbo C++ 1.01 (3.5).7z"
-```
-
-With a `.7z` sitting in the repo root, the argument can be omitted. Output lands in
-`public/dev-toolchain/` and is gitignored.
+On first run the app asks for install disks; the unpacked toolchain is then cached
+in IndexedDB, so it is a one-time step per browser rather than per session.
 
 ## Licensing
 
@@ -100,4 +99,6 @@ Two things this does **not** reach:
 
 ## Status
 
-Step 0 of 8. Scaffold and preflight checks only.
+Step 3 of 8. Supply your disks, compile a mode 13h program, and watch it run.
+Still to come: the Monaco editor shell, multi-file projects with local
+persistence, import/export, and compiler errors inline.

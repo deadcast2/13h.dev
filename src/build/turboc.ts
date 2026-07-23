@@ -3,7 +3,7 @@ import type { CommandInterface, InitFsEntry } from "emulators";
 import { emulatorLock } from "../dos/emulatorLock";
 import { loadEmulators } from "../dos/emulators";
 import { copyForEmulator } from "../dos/initFs";
-import { DEV_TOOLCHAIN_URL } from "../toolchain/devFixture";
+import { loadToolchain } from "../toolchain/store";
 
 /**
  * Drives Turbo C++ 1.01's command-line compiler inside a headless DOSBox.
@@ -197,18 +197,16 @@ export async function compile(
   const startedAt = performance.now();
   const emulators = await loadEmulators();
 
-  const toolchainResponse = await fetch(DEV_TOOLCHAIN_URL);
-  if (!toolchainResponse.ok) {
+  const toolchain = await loadToolchain();
+  if (!toolchain) {
     throw new Error(
-      `Toolchain unavailable (${toolchainResponse.status}). ` +
-        `Run: npm run toolchain:fixture`,
+      "No Turbo C++ toolchain installed. Supply your install disks to set one up.",
     );
   }
-  const toolchain = new Uint8Array(await toolchainResponse.arrayBuffer());
 
   const initFs: InitFsEntry[] = [
     // A bare Uint8Array is treated as a zip bundle and extracted into C:.
-    toolchain,
+    toolchain.zip,
     { dosboxConf: DOSBOX_CONF, jsdosConf: { version: emulators.version } },
     { path: `${SRC_DIR}/TURBOC.CFG`, contents: encode(turbocCfg(options)) },
     { path: `${SRC_DIR}/BUILD.BAT`, contents: encode(buildBat(sources)) },

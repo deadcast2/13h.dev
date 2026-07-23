@@ -31,6 +31,35 @@ js-dos repository above, tagged `8.4.1`.
 
 None of these files are modified by this project.
 
+## 7-Zip (7z-wasm)
+
+- **Package:** `7z-wasm` 1.2.0, based on 7-Zip 24.09
+- **Copyright:** Igor Pavlov
+- **License:** GNU LGPL, and for `7zz.wasm` / `7zz.*.js`, **GNU LGPL + unRAR
+  restriction**
+- **Source:** https://github.com/use-strict/7z-wasm
+
+Used only during first-run setup, to read the user's Turbo C++ install disks: the
+LZMA `.7z`, the FAT12 floppy images inside it, and the PKZIP 1.x "Implode"
+archives inside those. It is loaded dynamically and never fetched on an ordinary
+visit. The files are used unmodified.
+
+### unRAR restriction
+
+7-Zip's RAR decompression engine was developed from unRAR source code, all
+copyrights to which are owned by Alexander Roshal. That license carries a
+restriction which must be reproduced here:
+
+> The unRAR sources cannot be used to re-create the RAR compression algorithm,
+> which is proprietary. Distribution of modified unRAR sources in separate form or
+> as a part of other software is permitted, provided that it is clearly stated in
+> the documentation and source comments that the code may not be used to develop a
+> RAR (WinRAR) compatible archiver.
+
+Accordingly: **this code may not be used to develop a RAR (WinRAR) compatible
+archiver.** 13h.dev does not read or write RAR archives; the capability is simply
+present in the 7-Zip build being redistributed.
+
 ## Turbo C++ 1.01
 
 **Not included, and not redistributed.**

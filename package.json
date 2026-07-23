@@ -13,12 +13,11 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
-    "emulators:stage": "node tools/copy-emulator-assets.mjs",
-    "toolchain:fixture": "node tools/make-toolchain-fixture.mjs"
+    "emulators:stage": "node tools/copy-emulator-assets.mjs"
   },
   "dependencies": {
+    "7z-wasm": "^1.2.0",
     "emulators": "^8.4.1",
-    "fflate": "^0.8.3",
     "js-dos": "^8.4.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

@@ -24,12 +24,11 @@ pnpm-debug.log*
 
 # --- Turbo C++ toolchain -------------------------------------------------
 # The compiler is never repo content. Users supply their own install disks at
-# runtime (see README). These are the local copy and the dev-only fixture
-# derived from it by tools/make-toolchain-fixture.mjs.
+# runtime and they are unpacked in the browser (see README). This just keeps a
+# local copy from being committed by accident.
 *.7z
 *.img
 vendor/
-public/dev-toolchain/
 
 # js-dos runtime, staged out of node_modules by tools/copy-emulator-assets.mjs
 public/emulators/
