@@ -258,9 +258,15 @@ kbd {
 
 /* ── IDE frame ───────────────────────────────────────────────────────────── */
 
+/*
+ * A column of header, any number of full-width notices, the body, and the
+ * status bar. Flex rather than a fixed-row grid because the notices come and go:
+ * a three-row grid put whichever notice was showing into the 1fr track and
+ * stretched it to fill the viewport, and only the body should grow.
+ */
 .ide {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
   height: 100%;
 }
 
@@ -342,6 +348,9 @@ kbd {
 }
 
 .ide-body {
+  /* The one row that grows; the header, notices and status bar take their own
+     height. */
+  flex: 1;
   display: grid;
   /* minmax(0, …) on the editor column: Monaco's own content would otherwise set
      the column's minimum width and the grid would grow past the viewport. */
