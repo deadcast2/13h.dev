@@ -1,6 +1,6 @@
 # 13h.dev
 
-A single-page IDE for writing **mode 13h VGA graphics in Turbo C++ 1.01** — editing,
+A single-page IDE for writing **mode 13h VGA graphics in Turbo C++** — editing,
 compiling, and running, entirely client-side. No server, no DOS prompt, no Borland
 IDE. Write C, press build, watch your pixels.
 
@@ -44,7 +44,11 @@ Error: Unable to execute command 'tasm.exe'
 references to C variables. If you're following a book that drops into assembly for
 speed, that difference matters. On 1.01 the way around it is pseudo-registers
 (`_AX`, `_AH`, …) with `geninterrupt()`, or `int86()` — all compiler intrinsics
-that need no assembler.
+that need no assembler. Supplying a Turbo Assembler is the other way out, and
+makes `asm` blocks work as written on 1.01 too; see below.
+
+Both are supported and verified end to end; the build flags, `TURBOC.CFG` and
+`C0x.OBJ`/`Cx.LIB` naming are identical between them.
 
 ### Assembly files
 
@@ -78,23 +82,25 @@ builds go through. So an addition contributes only what was missing, which also
 makes adding the same disks twice a no-op rather than a coin toss. Verified end
 to end: TASM 4.1 assembles, TLINK 3.01 links, and the resulting program runs.
 
-Both are supported and verified end to end; the build flags, `TURBOC.CFG` and
-`C0x.OBJ`/`Cx.LIB` naming are identical between them.
+### Unpacking the disks
 
-Getting there means peeling three nested containers, which is why this uses
-[7z-wasm](https://github.com/use-strict/7z-wasm) rather than a normal zip library:
+Getting a toolchain out of them means peeling three nested containers, which is
+why this uses [7z-wasm](https://github.com/use-strict/7z-wasm) rather than a
+normal zip library:
 
 1. **`.7z`** — LZMA
 2. **`Disk0N.img`** — raw FAT12 720K floppy images
 3. **`TCC.ZIP`, `INCLUDE.ZIP`, …** — PKZIP 1.x using the legacy **Implode** method,
    which `fflate`, `JSZip`, and friends cannot decode
 
-Turbo C++ 3.0 adds a fourth: `CMDLINE.CA1`/`.CA2`, Borland's own split archives,
-which is where 3.0 keeps the command-line compiler. They turn out to be a four-byte
-header followed by raw zip data cut across disks — strip the headers, concatenate
-in numeric order, and an ordinary zip falls out. Parts are matched by name across
-the whole disk set, because they are deliberately spread apart: on the 3.0 disks
-`CMDLINE.CA2` is on disk 1 and `CMDLINE.CA1` is on disk 3.
+Two more formats turn up beyond those. Turbo C++ 3.0 keeps its command-line
+compiler in `CMDLINE.CA1`/`.CA2`, Borland's own split archives — a four-byte
+header followed by raw zip data cut across disks, so strip the headers,
+concatenate in numeric order, and an ordinary zip falls out. Parts are matched by
+name across the whole disk set, because they are deliberately spread apart: on
+the 3.0 disks `CMDLINE.CA2` is on disk 1 and `CMDLINE.CA1` is on disk 3. Turbo
+Assembler's `.PAK` files are the tamest of the lot once opened — plain LHA, which
+7-Zip has read all along.
 
 Rather than branch on which of those shapes you supplied, containers are expanded
 repeatedly until none are left, and the resulting files are then sorted by what
@@ -102,10 +108,11 @@ each one *is* — compiler and linker to `BIN`, `.H` to `INCLUDE`, `.LIB`/`.OBJ`
 `LIB`, `.BGI`/`.CHR` to `BGI`. An already-installed `C:\TC` folder therefore works
 as well as the raw disks.
 
-Assembled, the toolchain is ~80 files / 2 MB, cached at under 1 MB in IndexedDB.
-The Turbo C++ IDE itself (`TC.CA1`/`TC.CA2`) is skipped — `TCC.EXE` is driven
-directly. If what you supply doesn't contain a complete toolchain, setup says
-which pieces were missing rather than failing later at compile time.
+Assembled, Turbo C++ 1.01 comes to 118 files cached as a 952 KB zip in
+IndexedDB; adding Turbo Assembler takes that to 124 files and 1.2 MB. The Turbo
+C++ IDE itself (`TC.CA1`/`TC.CA2`) is skipped — `TCC.EXE` is driven directly. If
+what you supply doesn't contain a complete toolchain, setup says which pieces
+were missing rather than failing later at compile time.
 
 ## Your work stays put
 
@@ -136,8 +143,9 @@ uppercased on the way in, because that is what the disk stores.
 A build writes every file in the project to the compiler's working directory but
 names only `.C`, `.CPP` and `.ASM` on the command line: `.H` and `.INC` travel
 with the sources so `#include "VGA.H"` resolves, without being compiled as
-translation units in their own right. That command line is subject to DOS's 127-character limit, which
-is checked before the build rather than discovered as a link error afterwards.
+translation units in their own right. That command line is subject to DOS's
+127-character limit, which is checked before the build rather than discovered as
+a link error afterwards.
 
 ## Development
 
