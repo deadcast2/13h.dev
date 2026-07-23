@@ -5,14 +5,19 @@ import type { SourceFile } from "./turboc";
  *
  * It is deliberately three files rather than one. A single hello-world would
  * demonstrate nothing that isn't already proven by the toolchain existing,
- * whereas this exercises the two things the rest of the project stands on: a
- * real mode 13h program — `<dos.h>`, the BIOS video interrupt, a far pointer to
- * A000:0000 — and a multi-file build where a header travels with the sources but
- * is not itself a translation unit.
+ * whereas this exercises everything the rest of the project stands on: a real
+ * mode 13h program — `<dos.h>`, the BIOS video interrupt, a far pointer to
+ * A000:0000 — a multi-file build where a header travels with the sources but is
+ * not itself a translation unit, and, so the very first Build is motion rather
+ * than a still, an animation loop paced to the CRT's own retrace.
  *
- * It doubles as the smoke test. Every pixel is `x ^ y`, so the result is
- * checkable against the default VGA palette rather than by eye: 320x200, 246
- * distinct colours, 61808 non-black pixels.
+ * It doubles as the smoke test. The animation is the XOR pattern with a value
+ * that climbs one step per frame, and at t=0 — the first frame drawn — every
+ * pixel is `x ^ y` exactly as a static version would be: 320x200, 246 distinct
+ * colours, 61808 non-black pixels, all checkable against the default VGA palette
+ * rather than by eye. Adding a constant to every pixel is a bijection on the
+ * palette index, so the 246-distinct-colours count holds on every later frame
+ * too; only which pixels land on black, and thus the non-black count, moves.
  */
 
 const VGA_H: SourceFile = {
@@ -25,6 +30,7 @@ const VGA_H: SourceFile = {
 
 void set_mode(unsigned char mode);
 void put_pixel(int x, int y, unsigned char color);
+void wait_vsync(void);
 
 #endif
 `,
@@ -50,6 +56,22 @@ void put_pixel(int x, int y, unsigned char color)
 {
     vga[(unsigned int)y * SCREEN_W + x] = color;
 }
+
+/*
+ * Block until the CRT begins its next vertical retrace. Bit 3 of the input
+ * status register at port 0x3DA is set while the electron beam is travelling
+ * back up to the top of the screen and drawing nothing; waiting for that moment
+ * paces the animation to mode 13h's native ~70 frames a second instead of
+ * letting it run as fast as the machine can, and is the classic way a DOS game
+ * kept its motion smooth.
+ */
+void wait_vsync(void)
+{
+    while (inportb(0x3DA) & 0x08)
+        ;   /* if a retrace is already under way, let it finish */
+    while (!(inportb(0x3DA) & 0x08))
+        ;   /* then wait for the next one to begin */
+}
 `,
 };
 
@@ -58,17 +80,32 @@ const MAIN_C: SourceFile = {
   text: `#include <conio.h>
 #include "VGA.H"
 
+/*
+ * The XOR pattern, set in motion. Every pixel's colour is (x ^ y) plus an offset
+ * that climbs one step per frame, so the diagonal interference bands slide
+ * through the palette and the whole screen shimmers. The offset is an unsigned
+ * char, so it wraps from 255 back to 0 on its own and the motion never ends.
+ *
+ * Press any key to stop.
+ */
 int main(void)
 {
     int x, y;
+    unsigned char t = 0;
 
     set_mode(0x13);
 
-    for (y = 0; y < SCREEN_H; y++)
-        for (x = 0; x < SCREEN_W; x++)
-            put_pixel(x, y, (unsigned char)(x ^ y));
+    while (!kbhit())
+    {
+        for (y = 0; y < SCREEN_H; y++)
+            for (x = 0; x < SCREEN_W; x++)
+                put_pixel(x, y, (unsigned char)((x ^ y) + t));
 
-    getch();
+        wait_vsync();
+        t++;
+    }
+
+    getch();         /* swallow the key that stopped the loop */
     set_mode(0x03);  /* back to text before handing the machine back */
     return 0;
 }

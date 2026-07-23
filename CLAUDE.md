@@ -503,11 +503,16 @@ not clear the canvas, so a dead emulator's leftovers looked exactly like success
 **Check liveness separately from correctness.** Confirm frames are actually
 arriving, not only that the pixels are right.
 
-Reading pixels back beats screenshots: the sample program writes colour `x ^ y`,
-so values are checkable against the default VGA palette — `(1,0)` blue
-`0,0,170`, `(2,0)` green `0,170,0`, `(4,0)` red `170,0,0`, `(5,5)` black on the
-XOR diagonal. A correct run gives 320x200, 246 distinct colours, 61808 non-black
-pixels.
+Reading pixels back beats screenshots: the starter writes colour `(x ^ y) + t`,
+so values are checkable against the default VGA palette. At `t=0` — the first
+frame drawn — it is the plain XOR pattern: `(1,0)` blue `0,0,170`, `(2,0)` green
+`0,170,0`, `(4,0)` red `170,0,0`, `(5,5)` black on the XOR diagonal, 320x200, 246
+distinct colours, 61808 non-black pixels. Because `t` climbs one step per frame,
+a live capture usually lands at `t>0`: adding a constant is a bijection on the
+palette index, so **246 distinct colours holds on every frame** and is the stable
+check, while the non-black count drifts as different pixels cross black. Two
+captures a moment apart whose checksums differ is the liveness check — a still
+frame means the animation never started.
 
 In dev, `import("/src/build/turboc.ts")` from the browser console works and is the
 quickest way to compile arbitrary source without touching the UI.
@@ -554,8 +559,8 @@ click the button — that reads the file back without it ever reaching the disk.
 Stub `window.alert` while doing it, or the first bad import blocks the page.
 Step 6 was verified this way end to end: edit a model, export, close a tab,
 re-export, import the captured JSON through the real input, reload, build the
-imported project, and read the canvas back — 320x200, 246 colours, 61808
-non-black. Note that `import()`
+imported project, and read the canvas back — 320x200, 246 colours (the non-black
+count moves frame to frame now the starter animates). Note that `import()`
 returns whatever the dev server last served, so reload the page after editing a
 module or the console will keep handing back the old one.
 
