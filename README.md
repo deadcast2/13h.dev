@@ -237,6 +237,42 @@ its worker backend. **Any production host must send these headers too.**
 On first run the app asks for install disks; the unpacked toolchain is then cached
 in IndexedDB, so it is a one-time step per browser rather than per session.
 
+### Deploying
+
+`npm run build` produces a `dist/` of static files and nothing else — there is no
+server side to this app, because a compile and a run both happen in the visitor's
+own browser. Any static host will serve it, subject to two requirements.
+
+**It must send the isolation headers.** `public/_headers` carries them, in the
+format Cloudflare Pages and Netlify both read natively, and Vite copies it into
+`dist/` on every build. A host that cannot set response headers — GitHub Pages,
+most notably — will serve an app that loads, renders and then fails at the first
+build, since without `SharedArrayBuffer` no emulator can start. The IDE looks
+entirely healthy right up to the moment it doesn't.
+
+**It must be served from the domain root.** The js-dos runtime is fetched from
+the absolute path `/emulators/`, so a project subpath breaks it.
+
+The check after any deploy is one line in the console, and it is worth doing
+rather than assuming, because everything short of a build works without it:
+
+```js
+crossOriginIsolated  // must be true
+```
+
+Then supply disks and build something. Cache headers are set per-directory:
+`/assets/*` is fingerprinted by Vite and cached immutably, `/emulators/*` is
+copied under a plain name and so is only cached for a day.
+
+`.nvmrc` pins the build image to Node 22 — both hosts read it, and both have
+defaulted to a Node too old for Vite 6 at various points, which fails during
+install with nothing to do with this app.
+
+Hosting the app is not the same as having your work follow you to it. Projects
+and the unpacked toolchain are both browser storage, so a second computer is a
+first run: supply the disks once more, and move projects across with the export
+and import buttons.
+
 ## Licensing
 
 Copyright (C) 2026 Caleb Cohoon

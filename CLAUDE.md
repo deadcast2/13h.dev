@@ -253,6 +253,24 @@ running app before being written down — this build imports `edcore.main` rathe
 than the barrel, so what is present is not a given, and a reference that lists a
 shortcut which does nothing is worse than no reference.
 
+**Cross-origin isolation is a deploy-time requirement, not just a dev one.**
+`vite.config.ts` sets COOP/COEP for `server` and `preview`, which covers every
+way the app is run locally and none of the ways it is served in production. A
+host that drops them gets an app that loads, renders the whole IDE, accepts
+disks and then fails at the first build, because `SharedArrayBuffer` is gone and
+js-dos's worker backend needs it — so the failure is at the very end of the one
+path nobody exercises before shipping. `public/_headers` is the production half
+of that promise, in the format Cloudflare Pages and Netlify both read, copied
+into `dist/` verbatim by Vite. It rules out any host that cannot set headers,
+GitHub Pages included. `crossOriginIsolated` in the console is the check, and it
+is worth running after a deploy rather than trusting the config file.
+
+Two things follow from `require-corp` that constrain future work: every
+subresource must be same-origin, so a CDN script or a Google font is blocked
+outright — this is already why Monaco's worker is bundled — and `/emulators/` is
+an absolute path, so the app must be served from a domain root and not a project
+subpath.
+
 **One module owns the IndexedDB version.** The toolchain and the projects share
 the `13h.dev` database. Two modules each calling `indexedDB.open` at a version of
 their own gets the second a VersionError, or a silent block behind the first, so
