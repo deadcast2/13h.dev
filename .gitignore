@@ -32,3 +32,10 @@ vendor/
 
 # js-dos runtime, staged out of node_modules by tools/copy-emulator-assets.mjs
 public/emulators/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
