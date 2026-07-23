@@ -11,12 +11,11 @@
     "dev": "vite",
     "prebuild": "npm run emulators:stage",
     "build": "tsc -b && vite build",
-    "preview": "npm run build && wrangler dev",
+    "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "emulators:stage": "node tools/copy-emulator-assets.mjs",
-    "deploy": "npm run build && wrangler deploy"
+    "emulators:stage": "node tools/copy-emulator-assets.mjs"
   },
   "dependencies": {
     "7z-wasm": "^1.2.0",
@@ -27,7 +26,6 @@
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "^1.47.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^22.13.1",
@@ -38,7 +36,6 @@
     "jsdom": "^29.1.1",
     "typescript": "^5.7.3",
     "vite": "^6.0.11",
-    "vitest": "^3.2.7",
-    "wrangler": "^4.114.0"
+    "vitest": "^3.2.7"
   }
 }
