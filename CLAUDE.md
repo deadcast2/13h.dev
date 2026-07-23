@@ -33,13 +33,29 @@ npm run test:watch
 npm run build
 ```
 
-**The suite covers the pure logic and nothing else**, by design — DOS naming,
-the export format, and what TCC is told to build. It runs in Node with no jsdom
-and no mocks, and every trap in the list below that involves an emulator, a
-worker, a canvas or Monaco is outside it. Those are still verified by driving
-the real app; see Verification. A green suite is not a working app, and the day
-it starts being treated as one is the day the coverage it does have stops
-meaning anything.
+**The suite covers pure logic, storage, and the concurrency traps.** 139 tests:
+
+| File | What it holds down |
+| --- | --- |
+| `build/commandLine.test.ts` | Which files reach TCC; the 127-character limit, from both sides. |
+| `project/dosNames.test.ts` | Every 8.3 rejection, device names, sort order. |
+| `project/transfer.test.ts` | Export round trip; every case an import refuses. |
+| `project/store.test.ts` | The two-writer merge, against real IndexedDB semantics. |
+| `project/useAutosave.test.ts` | Debounce, unmount flush, and which fields it writes. |
+| `project/useProjects.test.ts` | StrictMode seeding, import, delete, storage failure. |
+| `dos/emulatorLock.test.ts` | That two emulators can never be live at once. |
+
+Node by default; the two hook files opt into jsdom with a `@vitest-environment`
+docblock. Storage tests run against `fake-indexeddb` rather than a hand-written
+double, because transaction semantics are the entire subject and a double would
+have to reimplement them to be worth anything.
+
+**Still outside it, and deliberately:** the emulator itself, the canvas, Monaco,
+and anything that claims a program ran. A fake for those would pass while the
+app was broken. Those are verified by driving the real app; see Verification.
+Also outside it: `Workbench`'s build re-entrancy ref, which would need Monaco,
+the runner and the preview pane all mocked to reach — the trap is real, the test
+for it would be mostly scaffolding.
 
 ## Layout
 
@@ -281,21 +297,27 @@ naming. Differences that matter:
 ## Verification
 
 **Two kinds, and they do not substitute for each other.** `npm test` owns the
-pure logic: 8.3 validation, the export format and its rejections, which
-extensions reach the command line, the 127-character limit. It is fast, it runs
-anywhere, and it catches the class of mistake that used to be caught only by
-someone noticing an EXE was byte-identical to one built without a file.
+rules and the timing — see the table under Commands. Everything involving an
+emulator, a worker, a canvas or Monaco is verified by driving the real app,
+because it cannot honestly be verified any other way. A fake for those would
+pass while the app was broken, which is worse than no coverage at all.
 
-Everything else is verified by driving the real app, because it cannot honestly
-be verified any other way: the emulator, the worker, the canvas, Monaco, and any
-claim that a program actually ran. A fake for those would pass while the app was
-broken, which is worse than no coverage at all.
+**Every test here was mutation-checked before it was believed**, and anything
+added should be too. What has been confirmed to turn the suite red:
 
-A new test is worth writing when it would have caught something. Both of the
-above were checked by mutation before being believed — removing `asm` from
-`TRANSLATION_UNIT`, and moving `DOS_COMMAND_LIMIT` by one — and each turned the
-suite red. Do that for anything new here; a green suite that has never been seen
-to fail is decoration.
+| Break this | Red |
+| --- | --- |
+| Drop `asm` from `TRANSLATION_UNIT` | 2 |
+| Move `DOS_COMMAND_LIMIT` by one | 3 |
+| `updateProject` as read-modify-write outside a transaction | 3 |
+| Remove `useAutosave`'s unmount flush | 1 |
+| Let autosave write `name` alongside its own fields | 1 |
+| Remove the `initialised` guard in `useProjects` | 3 |
+| Make `emulatorLock.run` call its task immediately | 3 |
+
+That last set is worth reading: without the guard the failures are *two
+identical starter projects*, which is exactly the symptom the trap describes. A
+test that has never been seen to fail is decoration.
 
 After changing anything on the build path, compile the starter project for real.
 The refactor that split `commandLine.ts` out of `turboc.ts` was accepted only

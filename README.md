@@ -197,11 +197,13 @@ npm run dev
 npm test
 ```
 
-The suite covers the pure logic — 8.3 filename rules, the import/export format
-and everything it refuses, and which files reach TCC's command line under DOS's
-127-character limit. It deliberately stops there. The emulator, the canvas and a
-real compile are checked by driving the actual app, since a mock of DOSBox would
-pass whether or not the thing works.
+The suite covers the rules and the timing: 8.3 filename validation, the
+import/export format and everything it refuses, which files reach TCC's command
+line under DOS's 127-character limit, the two writers that share a stored
+project, autosave's debounce and its flush on unmount, and the lock that keeps a
+second emulator from ever existing. It deliberately stops there. The emulator,
+the canvas and a real compile are checked by driving the actual app, since a
+mock of DOSBox would pass whether or not the thing works.
 
 The dev server sets `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy`
 so that `SharedArrayBuffer` is available — js-dos needs cross-origin isolation for
