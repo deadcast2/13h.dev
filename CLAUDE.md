@@ -271,6 +271,21 @@ outright — this is already why Monaco's worker is bundled — and `/emulators/
 an absolute path, so the app must be served from a domain root and not a project
 subpath.
 
+**The `.nvmrc` pin decides which npm resolves the lock file, and npm 10 and 11
+disagree.** `js-dos` bundles `react-checkbox-tree` and `react-redux`, whose react
+peer caps at `^18`. npm 11 dedupes those against the react 19 this app uses; npm
+10 nests a whole react-18 subtree — `react-dom@18.3.1`, `scheduler@0.23.2`,
+`@types/react@18.3.31`, `@types/prop-types` — to satisfy them. The lock file is
+authored by whatever npm runs `install` locally (npm 11 on Node 24), so a build
+image on Node 22 runs npm 10, computes a different ideal tree, and `npm ci`
+aborts with a page of `Missing … from lock file` naming packages that appear
+nowhere in `package.json`. It is not a corrupt lock file and `npm install` will
+not "fix" it — it will just rewrite the lock for whichever npm you ran, moving
+the break to the other environment. The fix is to pin `.nvmrc` to the Node whose
+npm wrote the lock, which is the Node you develop on. This bit on the very first
+Cloudflare deploy, because `npm ci` is stricter than the `npm install` every
+local run uses and nothing exercises it before shipping.
+
 **One module owns the IndexedDB version.** The toolchain and the projects share
 the `13h.dev` database. Two modules each calling `indexedDB.open` at a version of
 their own gets the second a VersionError, or a silent block behind the first, so

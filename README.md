@@ -264,9 +264,16 @@ Then supply disks and build something. Cache headers are set per-directory:
 `/assets/*` is fingerprinted by Vite and cached immutably, `/emulators/*` is
 copied under a plain name and so is only cached for a day.
 
-`.nvmrc` pins the build image to Node 22 — both hosts read it, and both have
-defaulted to a Node too old for Vite 6 at various points, which fails during
-install with nothing to do with this app.
+`.nvmrc` pins the build image to Node 24, and this pin is load-bearing rather
+than cosmetic. The version there decides which npm resolves `package-lock.json`,
+and npm 10 and 11 resolve it differently: `js-dos` bundles `react-checkbox-tree`
+and `react-redux`, whose react peer caps at `^18`, and npm 10 nests a whole
+react-18 subtree to satisfy them while npm 11 dedupes to the react 19 this app
+actually uses. The lock file is written by npm 11, so a build image on Node 22
+(npm 10) computes a different ideal tree and `npm ci` aborts with a page of
+`Missing … from lock file` naming packages that are nowhere in the project. Keep
+this matched to whatever npm authored the lock file — which is to say, to the
+Node you develop on.
 
 Hosting the app is not the same as having your work follow you to it. Projects
 and the unpacked toolchain are both browser storage, so a second computer is a
