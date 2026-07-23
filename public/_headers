@@ -16,11 +16,25 @@
 # carry CORP). Everything this app loads already is: Monaco's worker and its
 # codicon font are bundled, and the DOSBox wasm is served from /emulators/.
 # Adding a CDN script, a Google font or a remote image will be blocked outright.
+# The rest of this block is defence-in-depth on a site that is already static and
+# client-side: no backend, no accounts, and nothing typed here ever leaves the
+# browser. None of it is load-bearing the way the isolation pair above is.
+#
+# HSTS is belt-and-suspenders — the whole `.dev` TLD is HSTS-preloaded, so
+# browsers force HTTPS regardless — but the header is correct and carries the
+# `preload` directive for this specific host. Permissions-Policy denies the
+# device features the app has no use for. `frame-ancestors 'none'` refuses
+# framing outright, which COOP does not cover; it is the CSP's one directive that
+# is safe to ship ahead of the rest, since the app is never framed and the full
+# script/worker/wasm policy still needs testing against a live build.
 /*
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Embedder-Policy: require-corp
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  Permissions-Policy: accelerometer=(), autoplay=(), camera=(), display-capture=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()
+  Content-Security-Policy: frame-ancestors 'none'
 
 # Vite fingerprints everything under /assets/, so these are safe to keep forever.
 /assets/*
