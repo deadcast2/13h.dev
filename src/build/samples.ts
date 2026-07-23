@@ -76,3 +76,47 @@ int main(void)
 };
 
 export const STARTER_PROJECT: SourceFile[] = [MAIN_C, VGA_C, VGA_H];
+
+/**
+ * What a project created from scratch starts with. One self-contained file
+ * rather than a copy of the starter — someone making a second project has seen
+ * the tour already — but still a program that builds and draws, so Build works
+ * before anything has been typed.
+ *
+ * The cast in the offset calculation is the point of the exercise, not noise:
+ * `y * 320` overflows a 16-bit `int` from y=103 onwards, and the resulting
+ * garbage on screen is one of the first things mode 13h teaches you.
+ */
+export const NEW_PROJECT: SourceFile[] = [
+  {
+    name: "MAIN.C",
+    text: `#include <dos.h>
+#include <conio.h>
+
+unsigned char far *vga = (unsigned char far *)MK_FP(0xA000, 0x0000);
+
+void set_mode(unsigned char mode)
+{
+    union REGS r;
+    r.h.ah = 0x00;
+    r.h.al = mode;
+    int86(0x10, &r, &r);
+}
+
+int main(void)
+{
+    int x, y;
+
+    set_mode(0x13);
+
+    for (y = 0; y < 200; y++)
+        for (x = 0; x < 320; x++)
+            vga[(unsigned int)y * 320 + x] = (unsigned char)(y >> 3);
+
+    getch();
+    set_mode(0x03);
+    return 0;
+}
+`,
+  },
+];

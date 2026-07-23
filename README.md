@@ -12,7 +12,7 @@ Three layers, all in the browser:
 
 | Layer | What it does |
 | --- | --- |
-| **Editor** | Monaco, multi-file projects, tabs, 8.3-validated filenames |
+| **Editor** | Monaco, multi-file projects, tabs, 8.3-validated filenames, autosaved |
 | **Compiler** | Real `TCC.EXE` running in a headless [js-dos](https://js-dos.com) DOSBox worker |
 | **Preview** | The compiled `.EXE` in a second, visible DOSBox — actual emulated VGA |
 
@@ -75,6 +75,20 @@ Assembled, the toolchain is ~80 files / 2 MB, cached at under 1 MB in IndexedDB.
 The Turbo C++ IDE itself (`TC.CA1`/`TC.CA2`) is skipped — `TCC.EXE` is driven
 directly. If what you supply doesn't contain a complete toolchain, setup says
 which pieces were missing rather than failing later at compile time.
+
+## Your work stays put
+
+There is no Save button and no account. Projects are written to IndexedDB as you
+type — debounced, and flushed when you switch project or tab away — and the one
+you had open is the one that reopens next visit. You can keep as many as you
+like; each is an independent set of files with its own tabs.
+
+Like the compiler, none of it leaves the machine, which is also the limit worth
+knowing: this is browser storage, so it is per-browser and per-profile, and
+clearing site data clears your projects with it. Step 6 adds export to a file,
+which is the answer to both. If storage is unavailable at all — private mode,
+say — the app still runs on a single in-memory project and says so in the status
+bar rather than letting you find out by closing the tab.
 
 ## Filenames are 8.3
 
@@ -139,6 +153,7 @@ Two things this does **not** reach:
 
 ## Status
 
-Step 4 of 8. Supply your disks, edit a multi-file project, press Ctrl+B, and
-watch your pixels. Still to come: local persistence, import/export, and compiler
-errors shown inline against the source rather than only in the build log.
+Step 5 of 8. Supply your disks, edit a multi-file project, press Ctrl+B, watch
+your pixels, and find it all still there tomorrow. Still to come: import/export,
+and compiler errors shown inline against the source rather than only in the
+build log.

@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 
+import { useProjects } from "./project/useProjects";
 import { SetupPane } from "./toolchain/SetupPane";
 import { clearToolchain, loadToolchain, type StoredToolchain } from "./toolchain/store";
 
@@ -21,6 +22,7 @@ const Workbench = lazy(() =>
 export function App() {
   // undefined while the cache is being read, null when nothing is installed.
   const [toolchain, setToolchain] = useState<StoredToolchain | null | undefined>();
+  const projects = useProjects();
 
   useEffect(() => {
     loadToolchain().then(setToolchain);
@@ -62,9 +64,18 @@ export function App() {
     );
   }
 
+  if (!projects.ready || !projects.current) {
+    return <p className="placeholder">Opening your project…</p>;
+  }
+
   return (
     <Suspense fallback={<p className="placeholder">Loading the editor…</p>}>
       <Workbench
+        // Remounts on a project switch, which is how the editor's models and the
+        // build state get discarded along with the project they belonged to.
+        key={projects.current.id}
+        stored={projects.current}
+        projects={projects}
         toolchain={toolchain}
         onForget={async () => {
           await clearToolchain();

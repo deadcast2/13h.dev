@@ -189,6 +189,48 @@ kbd {
   color: var(--text-dim);
 }
 
+/* ── Project switcher ────────────────────────────────────────────────────── */
+
+.project-menu {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.project-select {
+  font: inherit;
+  max-width: 12rem;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.project-select:disabled {
+  color: var(--text-dim);
+  cursor: default;
+}
+
+.project-form {
+  display: flex;
+}
+
+.project-input {
+  font: inherit;
+  width: 14rem;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--vga-cyan);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.save-warning {
+  color: var(--vga-yellow);
+}
+
 .status-building {
   color: var(--vga-yellow);
 }

@@ -6,15 +6,16 @@ what bites.
 
 ## State
 
-Steps 0–4 of 8 are done and committed. It is a working IDE: supply install disks,
-edit a multi-file project in Monaco, press Ctrl+B, watch it run.
+Steps 0–5 of 8 are done and committed. It is a working IDE that remembers your
+work: supply install disks, edit a multi-file project in Monaco, press Ctrl+B,
+watch it run, and come back to it tomorrow.
 
-**Next: step 5, persistence** — the project model in `src/project/useProject.ts`
-is in-memory only, so a refresh loses everything. It wants the same IndexedDB
-treatment `src/toolchain/store.ts` already gives the compiler, plus somewhere to
-keep more than one project.
+**Next: step 6, import/export** — getting projects in and out as files. The
+stored shape in `src/project/store.ts` was written with this in mind: files are
+kept by name with no session-scoped ids in them, so a `StoredProject` minus its
+`id` and timestamps is very nearly the export format already.
 
-Then: 6 import/export, 7 compiler diagnostics inline, 8 polish.
+Then: 7 compiler diagnostics inline, 8 polish.
 
 The build log already carries what step 7 needs — TCC emits
 `Error main.c 7: Undefined symbol 'this' in function main`, so file and line are
@@ -41,8 +42,13 @@ browser and reading pixels back off the canvas.
 | `src/ide/EditorTabs.tsx` | The open set. Closing a tab is not deleting a file. |
 | `src/editor/monaco.ts` | Monaco entry points, VGA-palette theme, worker wiring. |
 | `src/editor/CodeEditor.tsx` | One model per file, keyed by id; view state per tab. |
-| `src/project/useProject.ts` | Files, open tabs, active file. In-memory for now. |
+| `src/ide/ProjectMenu.tsx` | Switch, create, rename, delete projects. |
+| `src/project/useProject.ts` | Live state: files, open tabs, active file. |
+| `src/project/useProjects.ts` | Which projects exist and which one is open. |
+| `src/project/useAutosave.ts` | Debounced write-back; owns the saved/saving state. |
+| `src/project/store.ts` | Projects in IndexedDB. Stored by name, never by id. |
 | `src/project/dosNames.ts` | 8.3 validation and the sort order the UI displays. |
+| `src/storage/db.ts` | The one IndexedDB connection. Owns the version number. |
 | `src/toolchain/unpack.ts` | Disks → `C:\TC` tree. Expands containers until none remain, then sorts files by type. |
 | `src/toolchain/sevenZip.ts` | 7-Zip wasm loader. Dynamically imported; 1.65 MB. |
 | `src/toolchain/store.ts` | IndexedDB cache of the unpacked toolchain. |
@@ -111,6 +117,37 @@ separate `-c` compile passes and an explicit `TLINK`, not a longer line.
 a header as a translation unit makes TCC compile it standalone and hand the
 linker an object file full of nothing. Both still have to be written to `SRC`, or
 `#include "VGA.H"` cannot resolve.
+
+**One module owns the IndexedDB version.** The toolchain and the projects share
+the `13h.dev` database. Two modules each calling `indexedDB.open` at a version of
+their own gets the second a VersionError, or a silent block behind the first, so
+both go through `src/storage/db.ts`. Upgrades create only what is missing —
+bumping to v2 for projects left an already-cached compiler untouched, which was
+verified rather than assumed.
+
+**StrictMode duplicates create-if-missing initialisation.** "No projects yet, so
+write a starter" is not idempotent, and StrictMode runs effects twice on purpose:
+both passes read an empty store and both write, and the user opens the app to two
+identical projects. `useProjects` guards with a ref, which survives the remount.
+Any future first-run seeding needs the same treatment.
+
+**Projects are stored by filename, never by file id.** Ids exist so a rename
+keeps its Monaco model, and they are handed out by a counter that restarts with
+the page. Persisting them would mean either restoring the counter alongside or
+issuing duplicates after a reload. Names are already unique and already
+validated, so they are the key, and the stored shape stays legible enough to
+become the export format.
+
+**Switching projects must re-read from storage.** The workbench autosaves
+contents straight to IndexedDB without telling `useProjects`, so the copies in
+its `projects` list go stale the moment anything is typed. They are fine for
+showing names; handing one back to the workbench would silently revert the
+session's work. `withFreshList` exists for this.
+
+**The autosave debounce needs an unmount flush.** Switching projects remounts the
+workbench, which cancels the pending timer. Without the flush in the cleanup, the
+last few hundred milliseconds of typing before a switch are simply gone —
+verified by marking a file and switching away in the same tick.
 
 **`phase` state cannot guard build re-entrancy.** Ctrl+B inside the editor is
 handled by Monaco's own binding, and if it also reaches the window listener both

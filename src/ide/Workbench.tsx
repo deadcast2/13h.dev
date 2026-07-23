@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { STARTER_PROJECT } from "../build/samples";
 import { compile, type BuildResult } from "../build/turboc";
 import { CodeEditor } from "../editor/CodeEditor";
+import type { StoredProject } from "../project/store";
+import { useAutosave } from "../project/useAutosave";
 import { useProject } from "../project/useProject";
+import type { ProjectsApi } from "../project/useProjects";
 import { PreviewPane } from "../run/PreviewPane";
 import { stopProgram } from "../run/runner";
 import type { StoredToolchain } from "../toolchain/store";
 import { EditorTabs } from "./EditorTabs";
 import { FileTree } from "./FileTree";
+import { ProjectMenu } from "./ProjectMenu";
 
 type Phase = "idle" | "building" | "done" | "error";
 
@@ -16,14 +19,31 @@ type Phase = "idle" | "building" | "done" | "error";
 const isDosExecutable = (bytes: Uint8Array) =>
   bytes.length > 2 && bytes[0] === 0x4d && bytes[1] === 0x5a;
 
+const SAVE_LABEL: Record<ReturnType<typeof useAutosave>, string> = {
+  saved: "saved",
+  saving: "saving…",
+  unavailable: "not saved — storage unavailable",
+};
+
+/**
+ * Mounted with the project's id as its key, so opening a different project
+ * remounts the whole workbench. That resets the editor's models and the build
+ * state together, which is what should happen: the executable belonging to the
+ * project you just closed has no business still being on screen.
+ */
 export function Workbench({
+  stored,
+  projects,
   toolchain,
   onForget,
 }: {
+  stored: StoredProject;
+  projects: ProjectsApi;
   toolchain: StoredToolchain;
   onForget: () => void;
 }) {
-  const project = useProject(STARTER_PROJECT);
+  const project = useProject(stored);
+  const saveState = useAutosave(stored, project.snapshot);
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [result, setResult] = useState<BuildResult | null>(null);
@@ -94,6 +114,16 @@ export function Workbench({
         <h1 className="brand">
           13h<span className="brand-dim">.dev</span>
         </h1>
+
+        <ProjectMenu
+          projects={projects.projects}
+          currentId={stored.id}
+          persistent={projects.persistent}
+          onSwitch={projects.switchTo}
+          onCreate={projects.create}
+          onRename={projects.rename}
+          onDelete={projects.remove}
+        />
 
         <button
           className="btn btn-primary"
@@ -189,7 +219,10 @@ export function Workbench({
           </button>
         </span>
         <span>
-          {project.files.length} files ·{" "}
+          <span className={saveState === "unavailable" ? "save-warning" : undefined}>
+            {SAVE_LABEL[saveState]}
+          </span>{" "}
+          · {project.files.length} files ·{" "}
           <a href="https://github.com/deadcast2/13h.dev">source</a> ·{" "}
           <a href="https://www.gnu.org/licenses/old-licenses/gpl-2.0.html">GPL-2.0</a>
         </span>
