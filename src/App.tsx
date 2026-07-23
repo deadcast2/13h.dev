@@ -1,5 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 
+import { Icon } from "./Icon";
+import { Logo } from "./Logo";
 import { useProjects } from "./project/useProjects";
 import { SetupPane } from "./toolchain/SetupPane";
 import { clearToolchain, loadToolchain, type StoredToolchain } from "./toolchain/store";
@@ -49,12 +51,13 @@ export function App() {
               title="Dismiss"
               onClick={projects.dismissLinkError}
             >
-              ✕
+              <Icon name="close" />
             </button>
           </p>
         )}
 
         <h1 className="brand brand-large">
+          <Logo className="brand-mark" />
           13h<span className="brand-dim">.dev</span>
         </h1>
         <p className="placeholder">Turbo C++ · mode 13h · entirely in your browser</p>

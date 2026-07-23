@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { Icon } from "../Icon";
 import { fileKind, validateDosName } from "../project/dosNames";
 import type { ProjectFile } from "../project/useProject";
 
@@ -95,7 +96,7 @@ export function FileTree({ files, activeId, onOpen, onCreate, onRename, onDelete
             setCreating(true);
           }}
         >
-          +
+          <Icon name="newFile" />
         </button>
       </header>
 
@@ -135,7 +136,7 @@ export function FileTree({ files, activeId, onOpen, onCreate, onRename, onDelete
                     setRenamingId(file.id);
                   }}
                 >
-                  ✎
+                  <Icon name="rename" />
                 </button>
                 <button
                   className="icon-btn"
@@ -147,7 +148,7 @@ export function FileTree({ files, activeId, onOpen, onCreate, onRename, onDelete
                     }
                   }}
                 >
-                  ✕
+                  <Icon name="delete" />
                 </button>
               </div>
             </li>

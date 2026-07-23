@@ -92,6 +92,13 @@ export function CodeEditor({
       onBuildRef.current(),
     );
 
+    // The editor measures its font's character width at create time. If the VGA
+    // bitmap font is still loading then, Monaco measures the fallback mono and
+    // every glyph lands a fraction off once the real font swaps in — the cursor
+    // drifts from the caret. Remeasuring when fonts settle fixes the metrics.
+    // (Usually already loaded, since the chrome uses it, but not guaranteed.)
+    document.fonts.ready.then(() => monaco.editor.remeasureFonts());
+
     return () => {
       editor.dispose();
       editorRef.current = null;

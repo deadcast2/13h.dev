@@ -1,3 +1,4 @@
+import { Icon } from "../Icon";
 import { fileKind } from "../project/dosNames";
 import type { ProjectFile } from "../project/useProject";
 
@@ -38,7 +39,7 @@ export function EditorTabs({
             title={`Close ${file.name}`}
             onClick={() => onClose(file.id)}
           >
-            ✕
+            <Icon name="close" />
           </button>
         </div>
       ))}

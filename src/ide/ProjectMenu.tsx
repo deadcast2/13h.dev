@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { Icon } from "../Icon";
 import { MAX_PROJECT_NAME, type StoredProject } from "../project/store";
 import { EXPORT_EXTENSION } from "../project/transfer";
 
@@ -129,7 +130,7 @@ export function ProjectMenu({
         title={unavailable ?? "New project"}
         onClick={() => setEditing("new")}
       >
-        +
+        <Icon name="new" />
       </button>
       <button
         className="icon-btn"
@@ -137,7 +138,7 @@ export function ProjectMenu({
         title={unavailable ?? "Rename this project"}
         onClick={() => setEditing("rename")}
       >
-        ✎
+        <Icon name="rename" />
       </button>
       <button
         className="icon-btn"
@@ -149,7 +150,7 @@ export function ProjectMenu({
           }
         }}
       >
-        ✕
+        <Icon name="delete" />
       </button>
 
       {/*
@@ -162,21 +163,21 @@ export function ProjectMenu({
         title={`Export "${current?.name}" to a file`}
         onClick={onExport}
       >
-        ↓
-      </button>
-      <button
-        className="icon-btn"
-        title={`Copy a link that opens a copy of "${current?.name}"`}
-        onClick={onShare}
-      >
-        ↗
+        <Icon name="export" />
       </button>
       <button
         className="icon-btn"
         title="Import a project from a file"
         onClick={() => fileRef.current?.click()}
       >
-        ↑
+        <Icon name="import" />
+      </button>
+      <button
+        className="icon-btn"
+        title={`Copy a link that opens a copy of "${current?.name}"`}
+        onClick={onShare}
+      >
+        <Icon name="share" />
       </button>
 
       <input

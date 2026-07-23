@@ -60,6 +60,40 @@ Accordingly: **this code may not be used to develop a RAR (WinRAR) compatible
 archiver.** 13h.dev does not read or write RAR archives; the capability is simply
 present in the 7-Zip build being redistributed.
 
+## IBM VGA font (The Ultimate Oldschool PC Font Pack)
+
+- **File:** `src/assets/fonts/Web437_IBM_VGA_9x16.woff` (bundled into the app and
+  served to every visitor)
+- **Copyright:** © 2016–2020 VileR
+- **License:** Creative Commons Attribution-ShareAlike 4.0 International (CC
+  BY-SA 4.0), https://creativecommons.org/licenses/by-sa/4.0/
+- **Source:** https://int10h.org/oldschool-pc-fonts/
+
+The "Web437 IBM VGA 9x16" web font — a faithful rendering of the IBM VGA 9×16
+text-mode ROM face, code page 437 — dresses the application chrome (the wordmark,
+panel titles, and buttons). It is used unmodified. CC BY-SA 4.0 requires that
+this attribution accompany the work and that any *modified* version of the font
+be shared under the same licence; the font here is redistributed as-is, and this
+licence covers only the font file, not the rest of 13h.dev.
+
+## Pixelarticons (toolbar icons)
+
+- **Files:** the pixel-art icon paths inlined in `src/Icon.tsx`
+- **Copyright:** © 2019 Gerrit Halfmann (halfmage)
+- **License:** MIT
+- **Source:** https://github.com/halfmage/pixelarticons
+
+The project toolbar's icons (new, rename, delete, export, share, import) are
+drawn from the Pixelarticons set, chosen because a pixel-art icon pack sits with
+the rest of the retro chrome. The paths are inlined unmodified. MIT requires that
+the copyright and permission notice accompany the work:
+
+> Permission is hereby granted, free of charge, to any person obtaining a copy of
+> this software and associated documentation files (the "Software"), to deal in
+> the Software without restriction… The above copyright notice and this
+> permission notice shall be included in all copies or substantial portions of
+> the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+
 ## Turbo C++ 1.01
 
 **Not included, and not redistributed.**

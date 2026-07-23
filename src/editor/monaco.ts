@@ -30,7 +30,10 @@ monaco.editor.defineTheme(THEME, {
   base: "vs-dark",
   inherit: true,
   rules: [
-    { token: "comment", foreground: "7d8590", fontStyle: "italic" },
+    // No italic: the VGA bitmap font has no slanted cut, so Monaco would fake
+    // one, and faux-italic on a pixel font looks broken. The grey already sets
+    // comments apart.
+    { token: "comment", foreground: "7d8590" },
     { token: "keyword", foreground: "55ffff" },
     { token: "keyword.directive", foreground: "ff5555" },
     { token: "keyword.directive.control", foreground: "ff5555" },
@@ -71,10 +74,18 @@ monaco.editor.defineTheme(THEME, {
 export const EDITOR_OPTIONS: monaco.editor.IStandaloneEditorConstructionOptions = {
   theme: THEME,
   automaticLayout: true,
+  // The real Turbo C++ editor drew code in exactly this face. The bitmap is only
+  // crisp at 16px and its multiples, so the size is pinned there rather than left
+  // to taste; the coding mono stays as the fallback while the webfont loads.
   fontFamily:
-    'ui-monospace, "Cascadia Code", "JetBrains Mono", "SF Mono", Consolas, monospace',
-  fontSize: 13,
-  lineHeight: 1.55,
+    '"Web437 IBM VGA", ui-monospace, "Cascadia Code", Consolas, monospace',
+  fontSize: 16,
+  // Absolute px, not a multiplier: 16px of glyph with 4px of leading. Keeps rows
+  // near their old height, so about as many lines stay on screen.
+  lineHeight: 20,
+  // The bitmap font ships no ligatures; asking for them only invites Monaco to
+  // hunt for a feature that isn't there.
+  fontLigatures: false,
   minimap: { enabled: false },
   scrollBeyondLastLine: false,
   // Turbo C's own defaults, and what the books' listings are indented with.

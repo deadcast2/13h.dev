@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 
+import { Icon } from "../Icon";
+
 /**
  * What the keyboard does.
  *
@@ -63,7 +65,7 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
         <header className="pane-header">
           <span>Keyboard</span>
           <button className="icon-btn" title="Close" onClick={onClose}>
-            ✕
+            <Icon name="close" />
           </button>
         </header>
 

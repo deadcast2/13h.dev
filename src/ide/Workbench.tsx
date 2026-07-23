@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { Icon } from "../Icon";
+import { Logo } from "../Logo";
 import { diagnosticSummary, locate } from "../build/diagnostics";
 import { compile, type BuildResult } from "../build/turboc";
 import { CodeEditor, type EditorMarker, type Reveal } from "../editor/CodeEditor";
@@ -248,6 +250,7 @@ export function Workbench({
     <div className="ide">
       <header className="ide-bar">
         <h1 className="brand">
+          <Logo className="brand-mark" />
           13h<span className="brand-dim">.dev</span>
         </h1>
 
@@ -330,7 +333,7 @@ export function Workbench({
             title="Dismiss"
             onClick={() => setImportError(null)}
           >
-            ✕
+            <Icon name="close" />
           </button>
         </p>
       )}
@@ -342,7 +345,7 @@ export function Workbench({
         <p className="ide-alert" role="alert">
           <span>{projects.linkError}</span>
           <button className="icon-btn" title="Dismiss" onClick={projects.dismissLinkError}>
-            ✕
+            <Icon name="close" />
           </button>
         </p>
       )}
@@ -351,7 +354,7 @@ export function Workbench({
         <p className="ide-alert is-info" role="status">
           <span className="ide-alert-text">{shareNotice.text}</span>
           <button className="icon-btn" title="Dismiss" onClick={() => setShareNotice(null)}>
-            ✕
+            <Icon name="close" />
           </button>
         </p>
       )}
@@ -395,7 +398,7 @@ export function Workbench({
                   void stopProgram();
                 }}
               >
-                ■
+                <Icon name="stop" />
               </button>
             )}
           </header>
@@ -403,11 +406,18 @@ export function Workbench({
           <div className="preview-slot">
             {executable ? (
               <PreviewPane executable={executable} />
+            ) : phase === "building" ? (
+              <div className="build-progress" role="status" aria-label="Compiling">
+                <span>
+                  Compiling<span className="build-progress-cursor">_</span>
+                </span>
+                <div className="build-progress-track">
+                  <div className="build-progress-fill" />
+                </div>
+              </div>
             ) : (
               <p className="placeholder">
-                {phase === "building"
-                  ? "Compiling…"
-                  : "Build to compile the project and run it here."}
+                Build to compile the project and run it here.
               </p>
             )}
           </div>

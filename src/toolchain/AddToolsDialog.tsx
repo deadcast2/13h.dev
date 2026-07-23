@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { Icon } from "../Icon";
 import { DiskDropZone } from "./DiskDropZone";
 import { saveToolchain, type StoredToolchain } from "./store";
 import { addToToolchain, type UnpackProgress } from "./unpack";
@@ -73,7 +74,7 @@ export function AddToolsDialog({
         <header className="pane-header">
           <span>Add to the toolchain</span>
           <button className="icon-btn" title="Close" onClick={onClose}>
-            ✕
+            <Icon name="close" />
           </button>
         </header>
 
