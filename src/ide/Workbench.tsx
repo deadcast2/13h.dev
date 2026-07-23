@@ -5,6 +5,12 @@ import { CodeEditor } from "../editor/CodeEditor";
 import type { StoredProject } from "../project/store";
 import { useAutosave } from "../project/useAutosave";
 import { useProject } from "../project/useProject";
+import {
+  downloadText,
+  exportFilename,
+  serializeExport,
+  toExport,
+} from "../project/transfer";
 import type { ProjectsApi } from "../project/useProjects";
 import { PreviewPane } from "../run/PreviewPane";
 import { stopProgram } from "../run/runner";
@@ -127,6 +133,18 @@ export function Workbench({
           onCreate={projects.create}
           onRename={projects.rename}
           onDelete={projects.remove}
+          onImport={projects.importFrom}
+          // From the live snapshot, never from `stored`: that is the copy this
+          // workbench was mounted with, and autosave has been writing over it
+          // ever since. Exporting it would hand back the project as it was when
+          // it was opened, minus everything typed since — silently, in a file
+          // whose whole purpose is to be the copy that survives.
+          onExport={() =>
+            downloadText(
+              exportFilename(stored.name),
+              serializeExport(toExport(stored.name, project.snapshot)),
+            )
+          }
         />
 
         <button

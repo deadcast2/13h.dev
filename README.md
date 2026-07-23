@@ -123,10 +123,52 @@ like; each is an independent set of files with its own tabs.
 
 Like the compiler, none of it leaves the machine, which is also the limit worth
 knowing: this is browser storage, so it is per-browser and per-profile, and
-clearing site data clears your projects with it. Step 6 adds export to a file,
-which is the answer to both. If storage is unavailable at all — private mode,
-say — the app still runs on a single in-memory project and says so in the status
-bar rather than letting you find out by closing the tab.
+clearing site data clears your projects with it. Export is the answer to both.
+If storage is unavailable at all — private mode, say — the app still runs on a
+single in-memory project and says so in the status bar rather than letting you
+find out by closing the tab.
+
+### Import and export
+
+The **↓** and **↑** buttons beside the project switcher write the current
+project to a `.13h.json` file and read one back. That file is the only copy of
+your work that outlives the browser it was written in, so it is plain indented
+JSON with the sources inline — readable in any editor, diffable, checkable into
+a repository, and repairable by hand:
+
+```json
+{
+  "format": "13h.dev/project",
+  "version": 1,
+  "name": "Mode 13h starter",
+  "files": [{ "name": "MAIN.C", "text": "#include \"VGA.H\"\n…" }],
+  "openNames": ["MAIN.C", "VGA.C"],
+  "activeName": "MAIN.C"
+}
+```
+
+Which files had tabs travels with it, which a zip of the sources could not have
+carried. Everything else in a stored project — its id, its timestamps — means
+something only to one browser and is left out.
+
+An import always arrives as a **new** project and never merges into or writes
+over an open one; there is no answer worth guessing for what should happen when
+both sides have a `MAIN.C` and the two differ. Importing the same file twice
+gives you a second copy with a distinguishing suffix rather than a switcher
+holding two entries with the same name.
+
+Coming back in, every field is checked rather than trusted, and filenames are
+held to exactly the 8.3 rules the editor enforces — so an import cannot produce
+a project the app itself would have refused to create. Picking the wrong file
+says so plainly and changes nothing:
+
+```
+player_movement.c: "PLAYER_MOVEMENT" is 15 characters; DOS allows 8.
+```
+
+Both buttons keep working when storage does not, which is when they matter
+most: in a browser with nowhere to keep projects, a file is the only way to
+carry one in or out.
 
 ## Filenames are 8.3
 
@@ -192,7 +234,7 @@ Two things this does **not** reach:
 
 ## Status
 
-Step 5 of 8. Supply your disks, edit a multi-file project, press Ctrl+B, watch
-your pixels, and find it all still there tomorrow. Still to come: import/export,
-and compiler errors shown inline against the source rather than only in the
-build log.
+Step 6 of 8. Supply your disks, edit a multi-file project, press Ctrl+B, watch
+your pixels, find it all still there tomorrow, and carry it out as a file when
+you want it somewhere else. Still to come: compiler errors shown inline against
+the source rather than only in the build log.

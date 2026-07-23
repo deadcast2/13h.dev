@@ -9,6 +9,7 @@ import {
   updateProject,
   type StoredProject,
 } from "./store";
+import { uniqueProjectName, type ExportedProject } from "./transfer";
 
 /**
  * The set of saved projects, and which one is open.
@@ -35,6 +36,8 @@ export interface ProjectsApi {
   persistent: boolean;
   switchTo: (id: string) => void;
   create: (name: string) => void;
+  /** Always a new project; an import never writes over one that is already here. */
+  importFrom: (exported: ExportedProject) => void;
   rename: (id: string, name: string) => void;
   remove: (id: string) => void;
 }
@@ -127,6 +130,44 @@ export function useProjects(): ProjectsApi {
     [openFrom, withFreshList],
   );
 
+  /**
+   * An import arrives as a new project and is opened. Never a merge and never
+   * an overwrite: the filenames in an export belong to the project that wrote
+   * it, and there is no answer worth guessing for what should happen when both
+   * sides have a MAIN.C and they differ.
+   *
+   * Alone among the mutations here it does not go through `withFreshList`,
+   * because it has somewhere useful to go when storage fails. A user in private
+   * mode has nowhere to keep projects — which is precisely when carrying one in
+   * as a file is the only way to get it back — so a failed write still leaves
+   * the imported project open, in memory, with the status bar saying as much.
+   */
+  const importFrom = useCallback(
+    (exported: ExportedProject) => {
+      void (async () => {
+        const build = (existing: StoredProject[]): StoredProject => ({
+          ...newProject(uniqueProjectName(exported.name, existing), exported.files),
+          // newProject opens everything; an export knows which tabs were open.
+          openNames: exported.openNames,
+          activeName: exported.activeName,
+        });
+
+        try {
+          const list = await listProjects();
+          const created = build(list);
+          await saveProject(created);
+          await openFrom([created, ...list], created.id);
+        } catch {
+          const created = build([]);
+          setProjects([created]);
+          setCurrent(created);
+          setPersistent(false);
+        }
+      })();
+    },
+    [openFrom],
+  );
+
   const rename = useCallback(
     (id: string, name: string) => {
       void withFreshList(async (list) => {
@@ -164,5 +205,15 @@ export function useProjects(): ProjectsApi {
     [current?.id, openFrom, withFreshList],
   );
 
-  return { projects, current, ready, persistent, switchTo, create, rename, remove };
+  return {
+    projects,
+    current,
+    ready,
+    persistent,
+    switchTo,
+    create,
+    importFrom,
+    rename,
+    remove,
+  };
 }

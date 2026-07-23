@@ -6,16 +6,12 @@ what bites.
 
 ## State
 
-Steps 0–5 of 8 are done and committed. It is a working IDE that remembers your
-work: supply install disks, edit a multi-file project in Monaco, press Ctrl+B,
-watch it run, and come back to it tomorrow.
+Steps 0–6 of 8 are done and committed. It is a working IDE that remembers your
+work and lets you take it with you: supply install disks, edit a multi-file
+project in Monaco, press Ctrl+B, watch it run, come back to it tomorrow, and
+export it to a file when you want it in another browser.
 
-**Next: step 6, import/export** — getting projects in and out as files. The
-stored shape in `src/project/store.ts` was written with this in mind: files are
-kept by name with no session-scoped ids in them, so a `StoredProject` minus its
-`id` and timestamps is very nearly the export format already.
-
-Then: 7 compiler diagnostics inline, 8 polish.
+**Next: step 7, compiler diagnostics inline.** Then 8, polish.
 
 The build log already carries what step 7 needs — TCC emits
 `Error main.c 7: Undefined symbol 'this' in function main`, so file and line are
@@ -54,6 +50,7 @@ browser and reading pixels back off the canvas.
 | `src/project/useProjects.ts` | Which projects exist and which one is open. |
 | `src/project/useAutosave.ts` | Debounced write-back; owns the saved/saving state. |
 | `src/project/store.ts` | Projects in IndexedDB. Stored by name, never by id. |
+| `src/project/transfer.ts` | The `.13h.json` export format, its reader, and the download. |
 | `src/project/dosNames.ts` | 8.3 validation and the sort order the UI displays. |
 | `src/storage/db.ts` | The one IndexedDB connection. Owns the version number. |
 | `src/toolchain/unpack.ts` | Disks → `C:\TC` tree. Expands containers until none remain, then sorts files by type. `addToToolchain` merges into an installed one. |
@@ -215,6 +212,30 @@ workbench, which cancels the pending timer. Without the flush in the cleanup, th
 last few hundred milliseconds of typing before a switch are simply gone —
 verified by marking a file and switching away in the same tick.
 
+**Export reads the live snapshot, never `stored`.** `Workbench`'s `stored` prop
+is the record it was mounted with, and autosave has been writing over that copy
+in IndexedDB ever since. Building the export from it hands back the project as
+it was when it was opened, missing everything typed since — silently, in a file
+whose entire purpose is to be the copy that survives. `project.snapshot` is the
+live one. Its `name` is the exception and does come from `stored`: renaming goes
+through `useProjects`, which updates `current`, and the workbench is keyed by id
+so it re-renders rather than remounting.
+
+**An import is a new project, never a merge.** Filenames in an export belong to
+the project that wrote it, and there is no answer worth guessing for two
+differing `MAIN.C`s. `importFrom` is also the one mutation in `useProjects` that
+deliberately skips `withFreshList`: it has somewhere useful to go when storage
+fails — leaving the imported project open in memory — which is exactly the case
+a private-mode user needs.
+
+**Two small browser details in `downloadText`.** The anchor must be in the
+document for Firefox to honour a synthetic click, and the object URL must
+outlive the click — revoking in the same tick cancels the download in Chrome,
+which only shows up on a fast machine. And a file input keeps its value, so
+picking the same file twice in a row fires no second `change` event; the value
+is cleared in the handler, because re-importing after a mistake is the obvious
+thing to try.
+
 **`phase` state cannot guard build re-entrancy.** Ctrl+B inside the editor is
 handled by Monaco's own binding, and if it also reaches the window listener both
 fire in the same tick and both read the pre-render value. Two builds then race,
@@ -279,8 +300,19 @@ const { addToToolchain } = await import("/src/toolchain/unpack.ts");
 
 Feeding the real UI instead means building a `DataTransfer`, assigning it to the
 dialog's hidden `input.files`, and dispatching a bubbling `change` — which is
-what actually exercises React's handler. Both were used to verify step 6's
-predecessor; neither needs the disks re-supplied by hand. Note that `import()`
+what actually exercises React's handler. Both were used to verify the assembler
+addition; neither needs the disks re-supplied by hand.
+
+The same `DataTransfer` trick drives import, against
+`.project-menu input[type=file]`. Export goes the other way: wrap
+`URL.createObjectURL` to keep the `Blob` and replace
+`HTMLAnchorElement.prototype.click` to read the filename off the anchor, then
+click the button — that reads the file back without it ever reaching the disk.
+Stub `window.alert` while doing it, or the first bad import blocks the page.
+Step 6 was verified this way end to end: edit a model, export, close a tab,
+re-export, import the captured JSON through the real input, reload, build the
+imported project, and read the canvas back — 320x200, 246 colours, 61808
+non-black. Note that `import()`
 returns whatever the dev server last served, so reload the page after editing a
 module or the console will keep handing back the old one.
 

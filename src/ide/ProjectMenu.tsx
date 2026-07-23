@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { StoredProject } from "../project/store";
+import { MAX_PROJECT_NAME, type StoredProject } from "../project/store";
+import {
+  EXPORT_EXTENSION,
+  parseExport,
+  type ExportedProject,
+} from "../project/transfer";
 
 /**
- * Switch between saved projects, and create, rename or delete them.
+ * Switch between saved projects; create, rename, delete, import and export them.
  *
  * Project names are the user's own labels rather than anything DOS ever sees,
  * so unlike filenames they are not held to 8.3 — only to being non-empty and
  * short enough to read in a toolbar.
  */
-
-const MAX_NAME = 40;
 
 interface Props {
   projects: StoredProject[];
@@ -21,6 +24,9 @@ interface Props {
   onCreate: (name: string) => void;
   onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
+  /** Builds the file from the live project, which only the workbench has. */
+  onExport: () => void;
+  onImport: (exported: ExportedProject) => void;
 }
 
 function NameField({
@@ -44,7 +50,7 @@ function NameField({
       className="project-form"
       onSubmit={(event) => {
         event.preventDefault();
-        const name = draft.trim().slice(0, MAX_NAME);
+        const name = draft.trim().slice(0, MAX_PROJECT_NAME);
         if (name) onCommit(name);
       }}
     >
@@ -52,7 +58,7 @@ function NameField({
         ref={inputRef}
         className="project-input"
         value={draft}
-        maxLength={MAX_NAME}
+        maxLength={MAX_PROJECT_NAME}
         spellCheck={false}
         autoComplete="off"
         placeholder="Project name"
@@ -74,10 +80,29 @@ export function ProjectMenu({
   onCreate,
   onRename,
   onDelete,
+  onExport,
+  onImport,
 }: Props) {
   const [editing, setEditing] = useState<"new" | "rename" | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const current = projects.find((project) => project.id === currentId);
+
+  /**
+   * Reading and checking the file happens here rather than in the caller so
+   * that a bad one is reported next to the button that asked for it, and never
+   * reaches the point where it would become a project.
+   */
+  async function receive(file: File) {
+    try {
+      onImport(parseExport(await file.text()));
+    } catch (error) {
+      alert(
+        `${file.name} could not be imported.\n\n` +
+          (error instanceof Error ? error.message : String(error)),
+      );
+    }
+  }
 
   if (editing) {
     return (
@@ -139,6 +164,41 @@ export function ProjectMenu({
       >
         ✕
       </button>
+
+      {/*
+        Neither of these is disabled when storage is unavailable. That is the
+        state in which they matter most: a project you can carry as a file is
+        the only kind a private-mode browser can keep at all.
+      */}
+      <button
+        className="icon-btn"
+        title={`Export "${current?.name}" to a file`}
+        onClick={onExport}
+      >
+        ↓
+      </button>
+      <button
+        className="icon-btn"
+        title="Import a project from a file"
+        onClick={() => fileRef.current?.click()}
+      >
+        ↑
+      </button>
+
+      <input
+        ref={fileRef}
+        type="file"
+        hidden
+        accept={`${EXPORT_EXTENSION},application/json`}
+        onChange={(event) => {
+          const [file] = event.target.files ?? [];
+          // Cleared so that picking the same file twice in a row still fires a
+          // change event — re-importing after a mistake is an obvious thing to
+          // try, and an input that silently does nothing is not an answer.
+          event.target.value = "";
+          if (file) void receive(file);
+        }}
+      />
     </div>
   );
 }

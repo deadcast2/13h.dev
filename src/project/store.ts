@@ -13,6 +13,14 @@ import { PROJECTS_STORE, withStore, withTransaction } from "../storage/db";
  * basis of the export format in step 6.
  */
 
+/**
+ * Project names are the user's own labels — they never reach DOS, so they are
+ * held only to being non-empty and short enough to read in a toolbar. Both the
+ * rename field and an imported name are capped here so neither can produce a
+ * project the other would have refused.
+ */
+export const MAX_PROJECT_NAME = 40;
+
 export interface StoredProject {
   id: string;
   /** The user's name for it. Not a filename, so not subject to 8.3. */
