@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    // ES2024 for ArrayBuffer.prototype.detached, which is how transferred-away
+    // buffers are spotted before they cause a confusing failure deep in a worker.
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",

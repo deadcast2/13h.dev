@@ -1,16 +1,19 @@
 import type { CommandInterface } from "emulators";
 
+import { emulatorLock } from "../dos/emulatorLock";
 import { loadEmulators } from "../dos/emulators";
+import { copyForEmulator } from "../dos/initFs";
 import { toDosKeyCode } from "../dos/keyCodes";
 
 /**
  * Runs a compiled DOS executable in a visible DOSBox and paints it to a canvas.
  *
- * This is a second, entirely separate emulator from the one that compiles. Keeping
- * them apart means the running program gets a clean machine with nothing on it but
- * its own executable — no compiler, no source, no leftover object files — so
- * "restart" is just a fresh boot rather than an attempt to undo whatever the last
- * run did to the disk.
+ * This is a separate emulator from the one that compiles. The running program
+ * gets a clean machine with nothing on it but its own executable — no compiler,
+ * no sources, no leftover object files — so a restart is a fresh boot rather than
+ * an attempt to undo whatever the last run did to the disk.
+ *
+ * Exactly one preview emulator exists at a time, enforced by runProgram() below.
  */
 
 export type RunStatus = "booting" | "running" | "exited" | "stopped";
@@ -46,15 +49,16 @@ ${exe}
 
 export class ProgramRunner {
   private ci: CommandInterface | null = null;
-  private canvas: HTMLCanvasElement;
-  private context: CanvasRenderingContext2D;
+  private readonly canvas: HTMLCanvasElement;
+  private readonly context: CanvasRenderingContext2D;
+  private readonly onStatus: (status: RunStatus) => void;
   private frame: ImageData | null = null;
   private held = new Set<number>();
   private exitPoll: number | null = null;
   private disposed = false;
-  private onStatus: (status: RunStatus) => void;
+  private framesSeen = 0;
 
-  private constructor(canvas: HTMLCanvasElement, onStatus: (s: RunStatus) => void) {
+  constructor(canvas: HTMLCanvasElement, onStatus: (status: RunStatus) => void) {
     const context = canvas.getContext("2d", { alpha: false });
     if (!context) throw new Error("Could not get a 2D context for the preview.");
 
@@ -63,32 +67,33 @@ export class ProgramRunner {
     this.onStatus = onStatus;
   }
 
-  static async start(
-    executable: Uint8Array,
-    canvas: HTMLCanvasElement,
-    options: RunnerOptions = {},
-  ): Promise<ProgramRunner> {
+  /**
+   * Boots the emulator. Not locked — callers must already hold the emulator lock,
+   * which runProgram() does. Calling this directly risks two live instances.
+   */
+  async boot(executable: Uint8Array, options: RunnerOptions): Promise<void> {
     const exe = options.executableName ?? "MAIN.EXE";
-    const runner = new ProgramRunner(canvas, options.onStatus ?? (() => {}));
-    runner.onStatus("booting");
+    this.onStatus("booting");
 
     const emulators = await loadEmulators();
-    const ci = await emulators.dosboxWorker([
-      { dosboxConf: DOSBOX_CONF(exe), jsdosConf: { version: emulators.version } },
-      { path: exe, contents: executable },
-      ...(options.assets ?? []),
-    ]);
+    // The caller keeps its executable across restarts and recompiles, so it must
+    // not be the buffer that gets transferred away.
+    const ci = await emulators.dosboxWorker(
+      copyForEmulator([
+        { dosboxConf: DOSBOX_CONF(exe), jsdosConf: { version: emulators.version } },
+        { path: exe, contents: executable },
+        ...(options.assets ?? []),
+      ]),
+    );
 
-    if (runner.disposed) {
-      // stop() was called while we were still booting.
+    if (this.disposed) {
       await ci.exit();
-      return runner;
+      return;
     }
 
-    runner.ci = ci;
-    runner.attach(ci, exe);
-    runner.onStatus("running");
-    return runner;
+    this.ci = ci;
+    this.attach(ci, exe);
+    this.onStatus("running");
   }
 
   /**
@@ -97,7 +102,11 @@ export class ProgramRunner {
    * exact nearest-neighbour without any resampling maths here.
    */
   private resize(width: number, height: number) {
-    if (this.canvas.width === width && this.canvas.height === height) return;
+    // Assigning width/height clears the canvas, so a stopped runner must not do
+    // it — that would blank whatever replaced it.
+    if (this.disposed) return;
+    if (this.frame?.width === width && this.frame?.height === height) return;
+
     this.canvas.width = width;
     this.canvas.height = height;
     this.frame = this.context.createImageData(width, height);
@@ -106,34 +115,45 @@ export class ProgramRunner {
   private attach(ci: CommandInterface, exe: string) {
     const events = ci.events();
 
-    // The initial frame size is negotiated before dosboxWorker() resolves, so
-    // onFrameSize has already fired by the time there is anything to subscribe
-    // with. Seed from the current dimensions; the event then only has to carry
-    // later changes, such as the switch into mode 13h.
-    this.resize(ci.width(), ci.height());
     events.onFrameSize((width, height) => this.resize(width, height));
 
     events.onFrame((rgb, rgba) => {
-      if (!this.frame) return;
-      const out = this.frame.data;
+      // Frames can still arrive between stop() and the emulator going away.
+      if (this.disposed) return;
 
-      if (rgba) {
-        if (rgba.length !== out.length) return;
-        out.set(rgba);
-      } else if (rgb) {
-        // In practice this is the path that runs: the DOSBox backend delivers
-        // packed 24-bit RGB and leaves rgba null, so it gets widened here.
-        // A mismatched length means a frame raced a mode change; skip it rather
-        // than tear a half-old image or overrun the buffer.
-        if (rgb.length * 4 !== out.length * 3) return;
-        for (let i = 0, j = 0; i < rgb.length; i += 3, j += 4) {
-          out[j] = rgb[i];
-          out[j + 1] = rgb[i + 1];
-          out[j + 2] = rgb[i + 2];
+      const source = rgba ?? rgb;
+      if (!source) return;
+      // In practice rgba is always null and the packed 24-bit RGB path is the one
+      // that runs, but the backend's type allows either.
+      const stride = rgba ? 4 : 3;
+
+      // Dimensions are re-read per frame rather than cached at startup.
+      // onFrameSize does not fire for the size already in effect when the
+      // emulator becomes ready, and the dimensions do not reflect the real mode
+      // until it has settled — so a size sampled at boot is simply wrong, and
+      // caching it means every frame fails the length check below and the screen
+      // stays black. Re-reading is self-correcting across boot and mode switches.
+      this.framesSeen++;
+
+      const width = ci.width();
+      const height = ci.height();
+      if (this.frame?.width !== width || this.frame?.height !== height) {
+        this.resize(width, height);
+      }
+      if (!this.frame || source.length !== width * height * stride) {
+        return; // mid mode-change; the next frame will be consistent
+      }
+
+      const out = this.frame.data;
+      if (stride === 4) {
+        out.set(source);
+      } else {
+        for (let i = 0, j = 0; i < source.length; i += 3, j += 4) {
+          out[j] = source[i];
+          out[j + 1] = source[i + 1];
+          out[j + 2] = source[i + 2];
           out[j + 3] = 255;
         }
-      } else {
-        return;
       }
 
       this.context.putImageData(this.frame, 0, 0);
@@ -143,7 +163,38 @@ export class ProgramRunner {
     this.canvas.addEventListener("keyup", this.handleKeyUp);
     this.canvas.addEventListener("blur", this.releaseHeldKeys);
 
+    void this.seedFromFramebuffer(ci);
     this.watchForExit(ci, exe);
+  }
+
+  /**
+   * Paints the emulator's current framebuffer until live frames start arriving.
+   *
+   * DOSBox only emits a frame for lines that *change*. A program that draws its
+   * screen once and then waits for a key — which is most of them, and every
+   * example in a graphics book — leaves a completely static display, so if it
+   * finishes painting before we have subscribed, not one frame is ever sent and
+   * the canvas stays black indefinitely. The emulator becomes ready only after
+   * [autoexec] has begun, so losing that race is normal rather than unlucky.
+   *
+   * Reading the framebuffer directly closes the gap. It stops as soon as a real
+   * frame arrives, so animated programs pay for a couple of grabs at startup and
+   * nothing after.
+   */
+  private async seedFromFramebuffer(ci: CommandInterface) {
+    const deadline = Date.now() + 4000;
+
+    while (!this.disposed && this.framesSeen === 0 && Date.now() < deadline) {
+      try {
+        const shot = await ci.screenshot();
+        if (this.disposed || this.framesSeen > 0) return;
+        this.resize(shot.width, shot.height);
+        this.context.putImageData(shot, 0, 0);
+      } catch {
+        // Emulator not ready to be captured yet; try again shortly.
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
   }
 
   /**
@@ -208,7 +259,10 @@ export class ProgramRunner {
     this.held.clear();
   };
 
-  async stop(): Promise<void> {
+  /**
+   * Tears the emulator down. Not locked, for the same reason boot() isn't.
+   */
+  async shutdown(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
     this.stopPolling();
@@ -220,8 +274,45 @@ export class ProgramRunner {
 
     const ci = this.ci;
     this.ci = null;
-    if (ci) await ci.exit();
-
     this.onStatus("stopped");
+    if (ci) await ci.exit();
   }
+}
+
+/** The single live preview emulator, if any. */
+let active: ProgramRunner | null = null;
+
+/**
+ * Replaces whatever is currently running with a fresh boot of `executable`.
+ *
+ * Stopping the old instance and starting the new one happen as one unit on the
+ * emulator lock, so the two can never be alive at the same time however quickly
+ * Restart is clicked or however often StrictMode re-runs the effect.
+ */
+export function runProgram(
+  executable: Uint8Array,
+  canvas: HTMLCanvasElement,
+  options: RunnerOptions = {},
+): Promise<ProgramRunner> {
+  return emulatorLock.run(async () => {
+    if (active) {
+      await active.shutdown();
+      active = null;
+    }
+
+    const runner = new ProgramRunner(canvas, options.onStatus ?? (() => {}));
+    await runner.boot(executable, options);
+    active = runner;
+    return runner;
+  });
+}
+
+/** Stops the live preview, if there is one. */
+export function stopProgram(): Promise<void> {
+  return emulatorLock.run(async () => {
+    if (active) {
+      await active.shutdown();
+      active = null;
+    }
+  });
 }

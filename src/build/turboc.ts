@@ -1,6 +1,8 @@
 import type { CommandInterface, InitFsEntry } from "emulators";
 
+import { emulatorLock } from "../dos/emulatorLock";
 import { loadEmulators } from "../dos/emulators";
+import { copyForEmulator } from "../dos/initFs";
 import { DEV_TOOLCHAIN_URL } from "../toolchain/devFixture";
 
 /**
@@ -216,7 +218,15 @@ export async function compile(
     })),
   ];
 
-  const ci = await emulators.dosboxWorker(initFs);
+  // Copied on the way in so the toolchain buffer survives; step 3 will serve it
+  // from a cache rather than a fresh fetch, at which point reusing it is the
+  // normal case rather than the exception.
+  //
+  // Queued because a preview started right after a build would otherwise boot
+  // while this instance is still tearing down, and come up dead.
+  const ci = await emulatorLock.run(() =>
+    emulators.dosboxWorker(copyForEmulator(initFs)),
+  );
 
   const consoleOut: string[] = [];
   ci.events().onStdout((chunk) => consoleOut.push(chunk));
@@ -250,6 +260,6 @@ export async function compile(
       durationMs: performance.now() - startedAt,
     };
   } finally {
-    await ci.exit();
+    await emulatorLock.run(() => ci.exit());
   }
 }

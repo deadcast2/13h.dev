@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { ProgramRunner, type RunStatus } from "./runner";
+import { runProgram, stopProgram, type RunStatus } from "./runner";
 
 /**
  * A real VGA monitor stretched mode 13h's 320x200 across a 4:3 screen, so its
@@ -37,27 +37,32 @@ export function PreviewPane({ executable }: { executable: Uint8Array }) {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    let runner: ProgramRunner | null = null;
     let cancelled = false;
 
     setError(null);
     setStatus("booting");
 
-    ProgramRunner.start(executable, canvas, { onStatus: setStatus })
-      .then((started) => {
-        runner = started;
-        // StrictMode mounts twice in development; if the effect was already torn
-        // down while DOS was booting, shut the emulator straight back down.
-        if (cancelled) void started.stop();
-        else canvas.focus();
+    // Status updates from a superseded runner are dropped. StrictMode mounts
+    // twice in development, so the old instance's final "stopped" would otherwise
+    // land after the new one's "running" and the UI would read as dead while a
+    // program was happily on screen.
+    runProgram(executable, canvas, {
+      onStatus: (next) => {
+        if (!cancelled) setStatus(next);
+      },
+    })
+      .then(() => {
+        if (!cancelled) canvas.focus();
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err));
       });
 
+    // runProgram and stopProgram share one queue, so this teardown is guaranteed
+    // to complete before the next effect's boot begins.
     return () => {
       cancelled = true;
-      void runner?.stop();
+      void stopProgram();
     };
   }, [executable, generation]);
 
