@@ -4,6 +4,22 @@ import { emulatorLock } from "../dos/emulatorLock";
 import { loadEmulators } from "../dos/emulators";
 import { copyForEmulator } from "../dos/initFs";
 import { loadToolchain } from "../toolchain/store";
+import {
+  buildBat,
+  DONE_FILE,
+  LOG_FILE,
+  OUTPUT_EXE,
+  SRC_DIR,
+  toDos,
+  translationUnits,
+  turbocCfg,
+  type CompilerFlags,
+  type SourceFile,
+} from "./commandLine";
+
+// Re-exported from their old home so the rest of the app is untouched by the
+// split; a source file is a project-level idea, not an emulator one.
+export type { MemoryModel, SourceFile } from "./commandLine";
 
 /**
  * Drives Turbo C++'s command-line compiler inside a headless DOSBox.
@@ -24,33 +40,7 @@ import { loadToolchain } from "../toolchain/store";
  * collected, but only as a fallback for when things go wrong early.
  */
 
-/** Turbo C's memory models. Selects which startup object and runtime library link. */
-export type MemoryModel = "tiny" | "small" | "medium" | "compact" | "large" | "huge";
-
-const MODEL_FLAG: Record<MemoryModel, string> = {
-  tiny: "-mt",
-  small: "-ms",
-  medium: "-mm",
-  compact: "-mc",
-  large: "-ml",
-  huge: "-mh",
-};
-
-export interface SourceFile {
-  /** DOS 8.3 filename, e.g. "MAIN.C". */
-  name: string;
-  text: string;
-}
-
-export interface BuildOptions {
-  /**
-   * Large is the default because mode 13h work constantly reaches for far
-   * pointers into video memory at A000:0000, and the smaller models make that
-   * needlessly awkward for someone just following along with a book.
-   */
-  memoryModel?: MemoryModel;
-  /** Extra flags appended to TURBOC.CFG verbatim, one per line. */
-  extraFlags?: string[];
+export interface BuildOptions extends CompilerFlags {
   /** Give up after this long. A cold build is normally a few seconds. */
   timeoutMs?: number;
 }
@@ -85,30 +75,6 @@ const NO_ASSEMBLER_HINT =
   "Failing that, Turbo C++ 3.0 assembles inline `asm` blocks itself; 1.01 " +
   "cannot, and wants pseudo-registers with geninterrupt(), or int86().";
 
-const SRC_DIR = "SRC";
-const OUTPUT_EXE = "MAIN.EXE";
-const LOG_FILE = "BUILD.LOG";
-const DONE_FILE = "DONE.FLG";
-
-/**
- * What TCC is handed on the command line. Headers are written to the same
- * directory so `#include "VGA.H"` resolves, but naming one as a translation unit
- * makes TCC compile it standalone and then hand the linker an object file full
- * of nothing.
- */
-const TRANSLATION_UNIT = /\.(c|cpp|asm)$/i;
-
-/**
- * COMMAND.COM parses at most 127 characters, and truncates silently past that —
- * the tail of the file list simply never reaches the compiler, and the build
- * fails at link time complaining about symbols whose source is right there in
- * the project. Checked rather than discovered.
- */
-const DOS_COMMAND_LIMIT = 127;
-
-/** DOS tools want CRLF, and DOSBox's shell is particular about it in batch files. */
-const toDos = (text: string) => text.replace(/\r?\n/g, "\r\n");
-
 const encode = (text: string) => new TextEncoder().encode(text);
 
 /**
@@ -121,49 +87,6 @@ const decodeDos = (bytes: Uint8Array) => new TextDecoder("iso-8859-1").decode(by
 /** DOSBox colourises its console; the escape codes are noise in a build log. */
 const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*[A-Za-z]`, "g");
 const stripAnsi = (text: string) => text.replace(ANSI, "");
-
-/**
- * TCC reads TURBOC.CFG from the current directory automatically. Putting the
- * options here instead of on the command line sidesteps the 127-character DOS
- * command-line limit, which a project with a handful of source files would
- * otherwise blow through.
- */
-function turbocCfg(options: BuildOptions): string {
-  const lines = [
-    "-IC:\\TC\\INCLUDE",
-    "-LC:\\TC\\LIB",
-    MODEL_FLAG[options.memoryModel ?? "large"],
-    ...(options.extraFlags ?? []),
-  ];
-  return toDos(lines.join("\n") + "\n");
-}
-
-function buildBat(units: SourceFile[]): string {
-  // Compile and link in one invocation; TCC hands the objects to TLINK itself.
-  // `TCC` unqualified rather than C:\TC\BIN\TCC.EXE — the toolchain is on PATH
-  // either way, and the twelve characters saved are twelve characters of
-  // filenames that fit under the command-line limit.
-  const command = `TCC -e${OUTPUT_EXE} ${units.map((f) => f.name).join(" ")}`;
-
-  if (command.length + ` > ${LOG_FILE}`.length > DOS_COMMAND_LIMIT) {
-    throw new Error(
-      `This project has too many source files for one DOS command line ` +
-        `(${units.length} files, ${command.length} characters, limit ` +
-        `${DOS_COMMAND_LIMIT - 12}). Shorter filenames or fewer of them will fit.`,
-    );
-  }
-
-  return toDos(
-    [
-      "@ECHO OFF",
-      `${command} > ${LOG_FILE}`,
-      // Written last, so its presence means the build has finished. The host
-      // polls for this rather than guessing at timing.
-      `ECHO DONE > ${DONE_FILE}`,
-      "",
-    ].join("\n"),
-  );
-}
 
 const DOSBOX_CONF = `
 [dosbox]
@@ -250,10 +173,12 @@ export async function compile(
   sources: SourceFile[],
   options: BuildOptions = {},
 ): Promise<BuildResult> {
-  const units = sources.filter((file) => TRANSLATION_UNIT.test(file.name));
-  if (units.length === 0) {
-    throw new Error("Nothing to compile — the project has no .C or .CPP files.");
-  }
+  // Both of these throw for a reason the user can act on — nothing to compile,
+  // or a command line DOS would truncate — and both are settled here, before an
+  // emulator or a toolchain is loaded, so a bad project fails instantly rather
+  // than after a boot.
+  const units = translationUnits(sources);
+  const batch = buildBat(units);
 
   const startedAt = performance.now();
   const emulators = await loadEmulators();
@@ -270,7 +195,7 @@ export async function compile(
     toolchain.zip,
     { dosboxConf: DOSBOX_CONF, jsdosConf: { version: emulators.version } },
     { path: `${SRC_DIR}/TURBOC.CFG`, contents: encode(turbocCfg(options)) },
-    { path: `${SRC_DIR}/BUILD.BAT`, contents: encode(buildBat(units)) },
+    { path: `${SRC_DIR}/BUILD.BAT`, contents: encode(batch) },
     // Every file goes to the disk, units and headers alike; only the units are
     // named on the command line.
     ...sources.map((file) => ({

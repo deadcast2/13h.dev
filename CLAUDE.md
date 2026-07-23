@@ -28,11 +28,18 @@ it as the thing most likely to break unnoticed.
 ```bash
 npm run dev        # stages emulator assets, then vite
 npm run typecheck
+npm test           # vitest, node environment, ~0.4s
+npm run test:watch
 npm run build
 ```
 
-There is no test suite. Verification has been done by driving the real app in a
-browser and reading pixels back off the canvas.
+**The suite covers the pure logic and nothing else**, by design — DOS naming,
+the export format, and what TCC is told to build. It runs in Node with no jsdom
+and no mocks, and every trap in the list below that involves an emulator, a
+worker, a canvas or Monaco is outside it. Those are still verified by driving
+the real app; see Verification. A green suite is not a working app, and the day
+it starts being treated as one is the day the coverage it does have stops
+meaning anything.
 
 ## Layout
 
@@ -59,6 +66,7 @@ browser and reading pixels back off the canvas.
 | `src/toolchain/sevenZip.ts` | 7-Zip wasm loader. Dynamically imported; 1.65 MB. |
 | `src/toolchain/store.ts` | IndexedDB cache of the unpacked toolchain. |
 | `src/toolchain/SetupPane.tsx` | First-run drop zone. |
+| `src/build/commandLine.ts` | What TCC is told to build. Pure, and therefore tested. |
 | `src/build/turboc.ts` | Runs `TCC.EXE` in a headless DOSBox, reads back log + `.EXE`. |
 | `src/run/runner.ts` | Runs the built `.EXE` in a visible DOSBox, paints to canvas. |
 | `src/dos/emulatorLock.ts` | Serialises all emulator create/destroy. |
@@ -271,6 +279,27 @@ naming. Differences that matter:
   tree, not per directory.
 
 ## Verification
+
+**Two kinds, and they do not substitute for each other.** `npm test` owns the
+pure logic: 8.3 validation, the export format and its rejections, which
+extensions reach the command line, the 127-character limit. It is fast, it runs
+anywhere, and it catches the class of mistake that used to be caught only by
+someone noticing an EXE was byte-identical to one built without a file.
+
+Everything else is verified by driving the real app, because it cannot honestly
+be verified any other way: the emulator, the worker, the canvas, Monaco, and any
+claim that a program actually ran. A fake for those would pass while the app was
+broken, which is worse than no coverage at all.
+
+A new test is worth writing when it would have caught something. Both of the
+above were checked by mutation before being believed — removing `asm` from
+`TRANSLATION_UNIT`, and moving `DOS_COMMAND_LIMIT` by one — and each turned the
+suite red. Do that for anything new here; a green suite that has never been seen
+to fail is decoration.
+
+After changing anything on the build path, compile the starter project for real.
+The refactor that split `commandLine.ts` out of `turboc.ts` was accepted only
+once a live build still produced the same 9,201-byte EXE.
 
 Do not trust that a canvas looks right. Step 2 was declared working when the image
 on screen had been painted by an emulator that was then torn down — stopping does

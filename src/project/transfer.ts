@@ -1,6 +1,6 @@
 import type { SourceFile } from "../build/turboc";
 import { normalizeDosName, validateDosName } from "./dosNames";
-import { MAX_PROJECT_NAME, type StoredProject } from "./store";
+import { MAX_PROJECT_NAME } from "./store";
 import type { ProjectSnapshot } from "./useProject";
 
 /**
@@ -66,8 +66,10 @@ export function exportFilename(projectName: string): string {
   const slug = projectName
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
+    .slice(0, 40)
+    // Trimmed after the slice as well as before it, since cutting to length can
+    // itself land on a separator.
+    .replace(/^-+|-+$/g, "");
   return `${slug || "project"}${EXPORT_EXTENSION}`;
 }
 
@@ -166,7 +168,11 @@ export function parseExport(text: string): ExportedProject {
  * distinguishing suffix rather than becoming the second identically named entry
  * in a switcher that shows nothing but names.
  */
-export function uniqueProjectName(desired: string, existing: StoredProject[]): string {
+export function uniqueProjectName(
+  desired: string,
+  // Only the names matter, so that is all this asks for.
+  existing: readonly { name: string }[],
+): string {
   const taken = new Set(existing.map((project) => project.name.toLowerCase()));
   const base = (desired || "Imported project").slice(0, MAX_PROJECT_NAME);
   if (!taken.has(base.toLowerCase())) return base;
