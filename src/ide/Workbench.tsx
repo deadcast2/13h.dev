@@ -260,6 +260,13 @@ export function Workbench({
           persistent={projects.persistent}
           onSwitch={projects.switchTo}
           onCreate={projects.create}
+          // A copy is an import of ourselves: the live snapshot carried straight
+          // back in as a new, uniquely-named, opened project — the very thing
+          // `importFrom` does for a picked file, private-mode fallback included.
+          // Snapshot, not `stored`, for the same reason export and share are.
+          onDuplicate={() =>
+            projects.importFrom(toExport(stored.name, project.snapshot))
+          }
           onRename={projects.rename}
           onDelete={projects.remove}
           onImportFile={(file) => void importFile(file)}

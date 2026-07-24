@@ -13,6 +13,7 @@
 export type IconName =
   | "new"
   | "newFile"
+  | "copy"
   | "rename"
   | "delete"
   | "close"
@@ -28,6 +29,11 @@ const PATHS: Record<IconName, string> = {
     "M18 16h2v6h-2z",
   // plus — a new file, distinct from "new" (a whole project, a folder-plus).
   newFile: "M13 11h7v2h-7v7h-2v-7H4v-2h7V4h2v7Z",
+  // copy — two overlapping documents, for duplicating a whole project. The back
+  // one peeks out top-left behind the front, the way "copy" reads everywhere.
+  copy:
+    "M8 6h12v2H8zM4 2h12v2H4zm2 6h2v12H6zM2 4h2v12H2zm6 16h12v2H8zM20 8h2v12h-2z" +
+    "m-4-4h2v2h-2zM4 16h2v2H4z",
   // pencil
   rename:
     "M4 16H6V18H8V20H10V22H2V14H4V16ZM12 20H10V18H12V20ZM14 18H12V16H14V18ZM10 16H8V14H10" +

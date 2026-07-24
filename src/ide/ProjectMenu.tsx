@@ -19,6 +19,8 @@ interface Props {
   persistent: boolean;
   onSwitch: (id: string) => void;
   onCreate: (name: string) => void;
+  /** Makes a copy of the live project — its files as they are now, not as stored. */
+  onDuplicate: () => void;
   onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
   /** Builds the file from the live project, which only the workbench has. */
@@ -81,6 +83,7 @@ export function ProjectMenu({
   persistent,
   onSwitch,
   onCreate,
+  onDuplicate,
   onRename,
   onDelete,
   onExport,
@@ -131,6 +134,16 @@ export function ProjectMenu({
         onClick={() => setEditing("new")}
       >
         <Icon name="new" />
+      </button>
+      {/* Needs somewhere to keep the copy, so it goes with the storage-gated
+          group: without persistence there is only ever one project. */}
+      <button
+        className="icon-btn"
+        disabled={!persistent}
+        title={unavailable ?? `Duplicate "${current?.name}"`}
+        onClick={onDuplicate}
+      >
+        <Icon name="copy" />
       </button>
       <button
         className="icon-btn"
