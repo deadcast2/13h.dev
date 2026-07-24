@@ -25,9 +25,11 @@
 # `preload` directive for this specific host. Permissions-Policy denies the
 # device features the app has no use for.
 #
-# The CSP must stay in step with the copy in vite.config.ts, which enforces the
-# same policy on the dev server. Every source was settled by driving a real
-# build under the policy, not by guessing:
+# This is the production CSP; the strict form in vite.config.ts must stay in step
+# with it. The dev server alone adds 'unsafe-inline' to script-src, for Vite's
+# Fast Refresh preamble — a dev-only relaxation that never ships here. Every
+# source below was settled by driving a real build under the policy, not by
+# guessing:
 #   'unsafe-eval'   js-dos's emulators.js evaluates a string as JS at boot — the
 #                   build dies at emulator start without it. It does NOT grant
 #                   'unsafe-inline', so injected inline <script> and on*= handlers
@@ -35,7 +37,8 @@
 #                   own bootstrap and never sees user data.
 #   blob:           Vite builds instantiate the bundled Monaco and DOSBox workers
 #                   from blob URLs.
-#   'unsafe-inline' on style-src only (Monaco injects styles); never on scripts.
+#   'unsafe-inline' on style-src (Monaco injects styles); on scripts only on the
+#                   dev server, never in this production policy — see above.
 #   frame-ancestors refuses framing, which COOP does not cover.
 /*
   Cross-Origin-Opener-Policy: same-origin
