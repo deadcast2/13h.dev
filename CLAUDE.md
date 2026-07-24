@@ -73,7 +73,7 @@ for it would be mostly scaffolding.
 | `src/editor/monaco.ts` | Monaco entry points, VGA-palette theme, worker wiring. |
 | `src/editor/asmLanguage.ts` | Monarch grammar for TASM/MASM; Monaco ships none. |
 | `src/editor/CodeEditor.tsx` | One model per file, keyed by id; view state per tab. |
-| `src/ide/ProjectMenu.tsx` | Switch, create, rename, delete projects. |
+| `src/ide/ProjectMenu.tsx` | Switch, create, duplicate, rename, delete projects. |
 | `src/project/useProject.ts` | Live state: files, open tabs, active file. |
 | `src/project/useProjects.ts` | Which projects exist and which one is open. |
 | `src/project/useAutosave.ts` | Debounced write-back; owns the saved/saving state. |
@@ -92,6 +92,7 @@ for it would be mostly scaffolding.
 | `src/build/diagnostics.ts` | Reads errors out of the build log. Three formats, one shape. |
 | `src/ide/DiagnosticList.tsx` | The clickable list; the way back to a file you aren't in. |
 | `src/ide/ShortcutsDialog.tsx` | What the keyboard does — mostly Monaco's, and otherwise invisible. |
+| `src/ide/ConfirmDelete.tsx` | Inline delete confirmation, shared by the file tree and project menu; replaces `confirm()`, which embedded browsers swallow. |
 | `src/build/turboc.ts` | Runs `TCC.EXE` in a headless DOSBox, reads back log + `.EXE`. |
 | `src/run/runner.ts` | Runs the built `.EXE` in a visible DOSBox, paints to canvas. |
 | `src/dos/emulatorLock.ts` | Serialises all emulator create/destroy. |
@@ -283,9 +284,17 @@ reading the code up front would have predicted it. `'unsafe-eval'` does not gran
 it opens only the eval sink, which is js-dos's own bootstrap and never sees user
 data. `blob:` is on `script-src`/`worker-src` because a production Vite build
 instantiates the bundled Monaco and DOSBox workers from blob URLs; `style-src`
-carries `'unsafe-inline'` for Monaco's runtime-injected styles, scripts get no
-such grant. The policy lives in both `vite.config.ts` (dev) and `public/_headers`
-(prod) and the two must move together.
+carries `'unsafe-inline'` for Monaco's runtime-injected styles. Scripts get that
+grant only on the **dev server**: `@vitejs/plugin-react` injects its Fast Refresh
+preamble as an inline `<script>`, and without `'unsafe-inline'` on `script-src`
+the CSP blocks it, the preamble never installs, and the whole app blanks with
+`@vitejs/plugin-react can't detect preamble`. It is dev-only because a build
+ships no preamble — which is why the deployed site was fine and only `npm run
+dev` broke. So `public/_headers` (prod) and Vite's `preview` block stay strict,
+`vite preview` is where a stray inline `<script>` is still caught, and the dev
+`server` block is the one deliberate divergence. `contentSecurityPolicy` in
+`vite.config.ts` is now a function of a `dev` flag rather than a shared string;
+its strict form and `public/_headers` still have to move together.
 
 Two traps in testing a CSP against this app, both of which cost real time.
 First, the source-import console recipe (`import("/src/build/turboc.ts")`) only

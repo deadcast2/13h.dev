@@ -144,7 +144,10 @@ list above it is only this program's reading of them.
 There is no Save button and no account. Projects are written to IndexedDB as you
 type — debounced, and flushed when you switch project or tab away — and the one
 you had open is the one that reopens next visit. You can keep as many as you
-like; each is an independent set of files with its own tabs.
+like; each is an independent set of files with its own tabs. **Duplicate** — the
+copy button beside the switcher — makes a fresh project from the one open now,
+its files exactly as they stand on screen, so branching an experiment doesn't
+mean exporting one and reading it back.
 
 Like the compiler, none of it leaves the machine, which is also the limit worth
 knowing: this is browser storage, so it is per-browser and per-profile, and
@@ -194,6 +197,13 @@ player_movement.c: "PLAYER_MOVEMENT" is 15 characters; DOS allows 8.
 Both buttons keep working when storage does not, which is when they matter
 most: in a browser with nowhere to keep projects, a file is the only way to
 carry one in or out.
+
+A **share link** is that same export encoded into a URL — the link button
+copies one to your clipboard. It rides in the URL *fragment*, so it never
+reaches a server: whoever opens it gets their own new project, exactly as an
+imported file would, and it stays between the two people holding the link.
+Small projects travel well this way; a large one is surer as a file, and the
+link says as much when it grows past the point some chat apps would truncate.
 
 ## Filenames are 8.3
 
