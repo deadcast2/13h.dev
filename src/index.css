@@ -255,6 +255,75 @@ kbd {
   cursor: pointer;
 }
 
+/* ── Inline delete confirmation ──────────────────────────────────────────────
+   Stands in for window.confirm(), which some embedded browsers swallow — the
+   delete then looked dead. Shown where the deleted thing was, in the same VGA
+   language as the rename fields. Wraps so the same markup fits the wide toolbar
+   and a narrow file row alike. */
+.confirm-inline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.4rem;
+}
+
+.confirm-message {
+  font-family: var(--font-vga);
+  font-size: 16px;
+  min-width: 0;
+  color: var(--vga-light-red);
+}
+
+.confirm-btn {
+  font: inherit;
+  font-family: var(--font-vga);
+  font-size: 16px;
+  padding: 0.1rem 0.6rem;
+  border-radius: 0;
+  border: 1px solid var(--tv-frame);
+  background: var(--bg-panel);
+  color: var(--text);
+  box-shadow: 2px 2px 0 var(--tv-shadow);
+  cursor: pointer;
+}
+
+.confirm-btn:hover {
+  border-color: var(--tv-frame-lit);
+  color: var(--vga-light-cyan);
+}
+
+.confirm-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 var(--tv-shadow);
+}
+
+/* The destructive option wears the danger colour, so it is never the button the
+   eye takes for the safe default. */
+.confirm-btn--danger {
+  border-color: var(--vga-light-red);
+  color: var(--vga-light-red);
+}
+
+.confirm-btn--danger:hover {
+  background: var(--vga-light-red);
+  border-color: var(--vga-light-red);
+  color: var(--vga-black);
+}
+
+/* In the toolbar a long project name would push the buttons off the bar; hold
+   the question to one line and let it ellipsize instead. */
+.project-confirm .confirm-message {
+  max-width: 22rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* A file row is narrow; give the prompt the row's own padding. */
+.tree-confirm {
+  padding: 0.2rem 0.5rem 0.35rem;
+}
+
 /* ── Setup screen ────────────────────────────────────────────────────────── */
 
 .setup {

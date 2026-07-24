@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "../Icon";
 import { fileKind, validateDosName } from "../project/dosNames";
 import type { ProjectFile } from "../project/useProject";
+import { ConfirmDelete } from "./ConfirmDelete";
 
 /**
  * The project's files. Flat, because DOS projects of this vintage were flat and
@@ -81,6 +82,7 @@ function NameInput({
 export function FileTree({ files, activeId, onOpen, onCreate, onRename, onDelete }: Props) {
   const [creating, setCreating] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
   const names = files.map((file) => file.name);
 
@@ -93,6 +95,7 @@ export function FileTree({ files, activeId, onOpen, onCreate, onRename, onDelete
           title="New file"
           onClick={() => {
             setRenamingId(null);
+            setConfirmingDeleteId(null);
             setCreating(true);
           }}
         >
@@ -101,20 +104,40 @@ export function FileTree({ files, activeId, onOpen, onCreate, onRename, onDelete
       </header>
 
       <ul className="tree-list">
-        {files.map((file) =>
-          renamingId === file.id ? (
-            <li key={file.id}>
-              <NameInput
-                initial={file.name}
-                taken={names.filter((name) => name !== file.name)}
-                onCommit={(name) => {
-                  onRename(file.id, name);
-                  setRenamingId(null);
-                }}
-                onCancel={() => setRenamingId(null)}
-              />
-            </li>
-          ) : (
+        {files.map((file) => {
+          if (renamingId === file.id) {
+            return (
+              <li key={file.id}>
+                <NameInput
+                  initial={file.name}
+                  taken={names.filter((name) => name !== file.name)}
+                  onCommit={(name) => {
+                    onRename(file.id, name);
+                    setRenamingId(null);
+                  }}
+                  onCancel={() => setRenamingId(null)}
+                />
+              </li>
+            );
+          }
+
+          if (confirmingDeleteId === file.id) {
+            return (
+              <li key={file.id}>
+                <ConfirmDelete
+                  className="tree-confirm"
+                  message={`Delete ${file.name}?`}
+                  onConfirm={() => {
+                    onDelete(file.id);
+                    setConfirmingDeleteId(null);
+                  }}
+                  onCancel={() => setConfirmingDeleteId(null)}
+                />
+              </li>
+            );
+          }
+
+          return (
             <li key={file.id}>
               <div
                 className={`tree-row${file.id === activeId ? " is-active" : ""}`}
@@ -133,6 +156,7 @@ export function FileTree({ files, activeId, onOpen, onCreate, onRename, onDelete
                   title={`Rename ${file.name}`}
                   onClick={() => {
                     setCreating(false);
+                    setConfirmingDeleteId(null);
                     setRenamingId(file.id);
                   }}
                 >
@@ -143,17 +167,16 @@ export function FileTree({ files, activeId, onOpen, onCreate, onRename, onDelete
                   title={`Delete ${file.name}`}
                   disabled={files.length === 1}
                   onClick={() => {
-                    if (confirm(`Delete ${file.name}? This cannot be undone.`)) {
-                      onDelete(file.id);
-                    }
+                    setRenamingId(null);
+                    setConfirmingDeleteId(file.id);
                   }}
                 >
                   <Icon name="delete" />
                 </button>
               </div>
             </li>
-          ),
-        )}
+          );
+        })}
 
         {creating && (
           <li>

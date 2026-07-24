@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "../Icon";
 import { MAX_PROJECT_NAME, type StoredProject } from "../project/store";
 import { EXPORT_EXTENSION } from "../project/transfer";
+import { ConfirmDelete } from "./ConfirmDelete";
 
 /**
  * Switch between saved projects; create, rename, delete, import and export them.
@@ -91,6 +92,7 @@ export function ProjectMenu({
   onImportFile,
 }: Props) {
   const [editing, setEditing] = useState<"new" | "rename" | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const current = projects.find((project) => project.id === currentId);
@@ -105,6 +107,23 @@ export function ProjectMenu({
           setEditing(null);
         }}
         onCancel={() => setEditing(null)}
+      />
+    );
+  }
+
+  // Swaps the toolbar for the prompt, the way a rename does — the switcher and
+  // its buttons are gone while the question stands, so there is no second delete
+  // to press behind it.
+  if (confirmingDelete) {
+    return (
+      <ConfirmDelete
+        className="project-confirm"
+        message={`Delete "${current?.name}" and everything in it?`}
+        onConfirm={() => {
+          onDelete(currentId);
+          setConfirmingDelete(false);
+        }}
+        onCancel={() => setConfirmingDelete(false)}
       />
     );
   }
@@ -157,11 +176,7 @@ export function ProjectMenu({
         className="icon-btn"
         disabled={!persistent}
         title={unavailable ?? "Delete this project"}
-        onClick={() => {
-          if (confirm(`Delete "${current?.name}" and everything in it?`)) {
-            onDelete(currentId);
-          }
-        }}
+        onClick={() => setConfirmingDelete(true)}
       >
         <Icon name="delete" />
       </button>
