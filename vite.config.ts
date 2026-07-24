@@ -12,10 +12,10 @@ const crossOriginIsolation = {
   "Cross-Origin-Embedder-Policy": "require-corp",
 };
 
-// Content Security Policy. This string must stay in step with public/_headers,
-// which is the production copy — the same split COOP/COEP already live under.
-// Keeping it on the dev server too means a violation (a CDN font, an inline
-// <script>) breaks loudly during `npm run dev` rather than silently in prod.
+// Content Security Policy. The strict form (dev = false) is the production
+// policy and must stay in step with public/_headers. Real violations — a CDN
+// font, a remote image — break loudly on the dev server too, which is the point
+// of running the policy there. Scripts are the one exception, below.
 //
 // Every source here was settled by driving a real build under the policy and
 // removing nothing the emulator, 7-Zip or Monaco did not turn out to need:
@@ -24,35 +24,43 @@ const crossOriginIsolation = {
 //                    build dies at emulator start without it (measured, not
 //                    guessed). It does NOT grant 'unsafe-inline', so injected
 //                    inline <script> and on*= handlers — the usual XSS vectors —
-//                    stay blocked. It opens only the eval sink, which here is
-//                    js-dos's own bootstrap and is never handed user data.
+//                    stay blocked in production. It opens only the eval sink,
+//                    which here is js-dos's own bootstrap and is never handed
+//                    user data.
 //   blob:            Vite instantiates bundled workers (Monaco's, and js-dos's
 //                    DOSBox worker) from blob URLs in a production build.
-//   'unsafe-inline'  on style only — Monaco injects styles at runtime. Scripts
-//                    get no such grant.
+//   'unsafe-inline'  on style always — Monaco injects styles at runtime. On
+//                    script ONLY on the dev server: @vitejs/plugin-react injects
+//                    its Fast Refresh preamble as an inline <script>, and without
+//                    this the CSP blocks it, the preamble never installs, and the
+//                    app throws "can't detect preamble" and renders a blank page.
+//                    A build ships no preamble, so production and the built-app
+//                    `preview` stay strict — where a stray inline <script> is
+//                    still caught, `vite preview` mirroring prod exactly.
 //   frame-ancestors  refuses framing, which COOP does not cover.
-const contentSecurityPolicy = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-eval' blob:",
-  "style-src 'self' 'unsafe-inline'",
-  "worker-src 'self' blob:",
-  "img-src 'self' data: blob:",
-  "font-src 'self'",
-  "connect-src 'self' blob: data:",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "frame-ancestors 'none'",
-].join("; ");
+const contentSecurityPolicy = (dev: boolean) =>
+  [
+    "default-src 'self'",
+    `script-src 'self' 'unsafe-eval' blob:${dev ? " 'unsafe-inline'" : ""}`,
+    "style-src 'self' 'unsafe-inline'",
+    "worker-src 'self' blob:",
+    "img-src 'self' data: blob:",
+    "font-src 'self'",
+    "connect-src 'self' blob: data:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "frame-ancestors 'none'",
+  ].join("; ");
 
-const securityHeaders = {
+const securityHeaders = (dev: boolean) => ({
   ...crossOriginIsolation,
-  "Content-Security-Policy": contentSecurityPolicy,
-};
+  "Content-Security-Policy": contentSecurityPolicy(dev),
+});
 
 export default defineConfig({
   plugins: [react()],
-  server: { headers: securityHeaders },
-  preview: { headers: securityHeaders },
+  server: { headers: securityHeaders(true) },
+  preview: { headers: securityHeaders(false) },
 
   /**
    * Node, not jsdom. What is covered here is the pure rule-dense logic — DOS
